@@ -1,18 +1,49 @@
 <!--
 SYNC IMPACT REPORT
-Version change: (unfilled template) → 1.0.1
-Rationale: 1.0.0 was the initial ratification (the previous file was the unpopulated
-scaffold). 1.0.1 is a PATCH: deployed GMA auth configuration was verified against
-sbv2_gmafd_chef, correcting factual claims and the Principle I rationale. No
-principle was added, removed, or redefined; no previously compliant code becomes
-non-compliant.
+Version change: 1.0.1 → 1.0.2
+Rationale: PATCH. Principle II's outcome mapping was written from the design plan's
+description of a `status.code` envelope. Reading the actual v5 catalogue OpenAPI spec
+showed that surface signals partial success by HTTP status instead. The principle's
+RULES are unchanged — every result still carries a mandatory structured completeness
+verdict, `complete` still requires unqualified success, multi-hop aggregation is still
+required. Only the upstream signal being mapped is corrected, so no previously
+compliant code becomes non-compliant. Also defers the Prefab scaffold obligation while
+development is local-only.
 
-Modified principles:
+History:
+  - 1.0.0 initial ratification (previous file was the unpopulated scaffold).
+  - 1.0.1 PATCH: deployed GMA auth configuration verified against sbv2_gmafd_chef,
+    correcting the issuer and GAHS claims and Principle I's rationale.
+  - 1.0.2 PATCH: this amendment (see below).
+
+Modified principles (1.0.2):
+  - II. Mandatory Completeness Caveat — mapping table re-keyed from `status.code`
+    values to HTTP status codes for the v5 surface; aggregation precedence restated in
+    the surface-independent outcome vocabulary (TIMEOUT_PARTIAL > TOO_BROAD > PARTIAL >
+    COMPLETE); added a rule that a surface which DOES expose a `status.code` envelope
+    maps onto the same vocabulary rather than introducing a second representation.
+  - IV. Curated Task-Oriented Tools — `TOO_MANY_EVENTS` rule generalised to "too-broad",
+    which may be upstream-reported or tool-derived from cardinality (v5 does not report it).
+  - V. Config-Driven Ops & Safe Observability — log/alert fields say "upstream outcome"
+    rather than `status.code`.
+
+Modified sections (1.0.2):
+  - Development Workflow & Quality Gates — fixture library re-keyed to distinguishable
+    upstream outcomes (HTTP statuses on v5, plus a simulated transport timeout);
+    must-cover cases restated in the same vocabulary and gained the timeout-with-data
+    vs timeout-with-none pair.
+  - Technology & Platform Constraints — Prefab scaffold obligation DEFERRED while
+    local-only; still blocking for any non-local deployment.
+
+Modified principles (1.0.1):
   - I. Pass-Through Identity — rationale corrected: GAHS field-stripping is NOT
     currently active in any deployed environment (see below). Normative rules
     unchanged. Added the per-environment issuer constraint.
 
-Added sections: none (Technology & Platform Constraints gained a verified
+Added sections (1.0.2): "Deployed GMA partial-failure contract (verified 2026-09-03)"
+  under Technology & Platform Constraints.
+
+Added sections (1.0.1): none (Technology & Platform Constraints gained a verified
   "Deployed GMA authentication (verified)" subsection)
 
 Removed sections: none
@@ -49,7 +80,9 @@ Deferred items / follow-up TODOs:
     mean the effective value of any Chef-only property is unconfirmed. Worth a human
     check before relying on Chef to carry a property.
   - TODO(PREFAB_MIGRATION): This repository was created ad hoc, not via the Prefab
-    TS template. See "Technology & Platform Constraints" for the standing obligation.
+    TS template. Adoption is DEFERRED while development is local-only (decided
+    2026-09-03) and remains blocking for any non-local deployment. See "Technology &
+    Platform Constraints".
 -->
 
 # GMA MCP Server Constitution
@@ -110,24 +143,32 @@ Partial data MUST NEVER be presentable as complete.
   descriptor. Tools MUST NEVER receive a bare payload.
 - Every tool result MUST carry `completeness` as a structured, top-level field. It
   MUST NOT be prose-only and MUST NOT be omitted, including on full success.
-- `complete` MUST be `true` only for `status.code == SUCCESS`.
+- `complete` MUST be `true` only when every hop reported unqualified success
+  (HTTP `200` on the v5 catalogue surface).
 - A tool making N GMA calls MUST merge every hop: `complete` is the AND of all hops;
-  `code` is the worst hop code by precedence `FAILURE`/`BAD_REQUEST` >
-  `REQUEST_TIMEOUT` > `TOO_MANY_EVENTS` > `PARTIAL_SUCCESS` > `SUCCESS`;
+  the reported outcome is the worst hop outcome by precedence
+  `TIMEOUT_PARTIAL` > `TOO_BROAD` > `PARTIAL` > `COMPLETE`;
   `failedInstances` and `errors` are the union across hops.
 - GMA outcome → MCP outcome mapping is fixed and MUST be implemented in exactly one
-  place:
+  place. On the **v5 catalogue surface** the upstream signal is the **HTTP status
+  code**, not a body field (see "Deployed GMA partial-failure contract" below):
 
   | GMA outcome | MCP outcome |
   |---|---|
-  | `SUCCESS` | result, `complete: true` |
-  | `PARTIAL_SUCCESS` | result + structured caveat listing `failedInstances` |
-  | `TOO_MANY_EVENTS` | result framed as "too broad — narrow by …" |
-  | `REQUEST_TIMEOUT` with partial data | result + caveat |
-  | `REQUEST_TIMEOUT` with no data | tool error |
-  | `BAD_REQUEST` | tool error (agent self-corrects its arguments) |
-  | `FAILURE` | tool error |
+  | HTTP `200` | result, `complete: true` |
+  | HTTP `206` | result + structured caveat listing `failedInstances` |
+  | too broad (derived from result cardinality) | result framed as "too broad — narrow by …" |
+  | transport timeout with partial data | result + caveat |
+  | transport timeout with no data | tool error |
+  | HTTP `400` | tool error (agent self-corrects its arguments) |
+  | HTTP `404` | tool error, `kind: "notFound"` |
+  | HTTP `500` | tool error |
   | HTTP `401` | tool error, `kind: "auth"` |
+
+- Where a GMA surface **does** expose a `status.code` envelope (the older `api.yaml`
+  family, via `common.yaml`), a tool built on it MUST map that envelope's codes onto
+  the same outcome vocabulary above. The internal `Completeness` type is the single
+  representation regardless of which upstream surface produced it.
 
 - Tool descriptions MUST instruct the agent to relay partial-data caveats to the
   user.
@@ -167,8 +208,10 @@ The tool surface is hand-curated for the model, never generated from GMA's API.
   `resolved: null` with an empty candidate list; exactly one match MAY drill down and
   return the resolved entity; more than one match MUST return `resolved: null` plus
   the candidates. Auto-picking from more than one plausible match is prohibited.
-- `TOO_MANY_EVENTS` MUST return no resolution plus a hint naming the field to narrow
-  by.
+- A **too-broad** query MUST return no resolution plus a hint naming the field to
+  narrow by. Too-broad MAY be determined by the upstream system where it reports one,
+  or derived by the tool from result cardinality where it does not (the v5 catalogue
+  surface does not report it).
 - Tool input and output schemas MUST be clean, LLM-facing definitions. GMA DTOs,
   HTTP shapes, and envelope internals MUST NOT leak into a tool schema.
 - Operational values MUST NOT be tool arguments — see Principle V.
@@ -193,7 +236,7 @@ line.
   value. A `list_instances` tool MUST exist so agents can discover valid brand codes
   rather than guess them.
 - Tokens, credentials, and PII MUST NEVER be logged, traced, or included in error
-  messages. Logs carry tool name, GMA operation/path, per-hop `status.code`,
+  messages. Logs carry tool name, GMA operation/path, per-hop upstream outcome,
   resolution outcome, and latency.
 - The server MUST emit W3C `traceparent` to GMA so GMA's existing Micrometer +
   OpenTelemetry pipeline continues the trace with no GMA change.
@@ -220,15 +263,51 @@ configuration boundaries, not by care.
 - **v1 tool surface**: exactly three tools — `list_instances`,
   `find_catalogue_entity`, `get_catalogue_entity`. Expanding the surface is
   governed by Principle IV, not by convenience.
-- **Scaffold obligation**: production deployment MUST run from a repository
-  scaffolded via the org's Prefab TypeScript template, inheriting the org pipeline,
-  environment config, TLS, and monitoring. This repository was not created that way.
-  Migrating to a Prefab-scaffolded repository (or retrofitting the equivalent
-  configuration) is a blocking prerequisite for any non-local deployment, and is
-  tracked as `TODO(PREFAB_MIGRATION)`.
+- **Scaffold obligation** *(deferred 2026-09-03 — local-only development)*:
+  production deployment MUST run from a repository scaffolded via the org's Prefab
+  TypeScript template, inheriting the org pipeline, environment config, TLS, and
+  monitoring. This repository was not created that way, and adopting the template is
+  **explicitly deferred** while work is local-only: nothing is deployed, so the
+  template's value is unrealised and its layout constraints would shape code for a
+  deployment that does not yet exist.
+  This remains a **blocking prerequisite for any non-local deployment** and is tracked
+  as `TODO(PREFAB_MIGRATION)`. Deferring it is affordable only because the obligations
+  the template would otherwise carry are enforced directly by Principle V regardless of
+  scaffold: configuration comes from the environment, startup fails fast when it is
+  missing, and no operational value is hardcoded. Keeping that discipline while local is
+  what makes later adoption a configuration exercise rather than a rewrite.
 - **Deployment**: one deployed instance per GMA environment. A `/healthcheck`
   endpoint MUST exist. Traces MUST export to the shared collector, with dashboards
-  and alerts keyed by tool name and `status.code`.
+  and alerts keyed by tool name and upstream outcome.
+
+### Deployed GMA partial-failure contract (verified 2026-09-03)
+
+Verified by reading `gma-api/src/main/resources/static/api_catalogue.yaml`. Recorded
+because the design plan (`docs/gma-mcp-server-plan.md`) described a different contract,
+and Principle II was originally written from that description.
+
+| Fact | Value |
+|---|---|
+| Partial success signal | HTTP **`206`** (declared on 28 v5 operations) |
+| Full success | HTTP `200` (30 operations) |
+| Other declared statuses | `400` (28), `401` (30), `404` (27), `500` (30) |
+| Instance fields | `successfulConfigSources` / `failedConfigSources` |
+| Per-instance error | `Error { configSource, message }` |
+| `status.code` envelope | **absent from v5** — `api_catalogue.yaml` has zero references to `common.yaml` |
+| `TOO_MANY_EVENTS` / `REQUEST_TIMEOUT` | **not present on v5**; they belong to the older `api.yaml` family |
+
+Consequences that bind this project:
+
+- The v5 client MUST derive completeness from the **HTTP status code**, and MUST NOT
+  parse a `status.code` body field on that surface.
+- Upstream `configSource` naming MUST be translated to the project's `instance`
+  vocabulary at the client boundary, so tool-facing types stay consistent (Principle IV).
+- Too-broad MUST be derived from result cardinality on this surface (Principle IV).
+- A transport timeout has no HTTP response, so it MUST be handled as a client-side
+  condition and distinguished by whether any hop already produced usable data.
+- The internal `Completeness` type is surface-independent: a future domain built on a
+  `status.code` surface maps onto the same vocabulary rather than introducing a second
+  representation.
 
 ### Deployed GMA authentication (verified 2026-09-03)
 
@@ -265,17 +344,19 @@ Consequences that bind this project:
 Testing is fixture-driven and coverage-gated. Test-first is not mandated: tests and
 implementation MAY land in the same change.
 
-- **Fixture library (blocking)**: a fixture MUST exist for every GMA `status.code` —
-  `SUCCESS`, `PARTIAL_SUCCESS`, `FAILURE`, `TOO_MANY_EVENTS`, `REQUEST_TIMEOUT`,
-  `BAD_REQUEST` — for every GMA operation a tool depends on. A tool MUST NOT ship
-  without its fixtures. Hand-crafting a fixture from the OpenAPI schema is
+- **Fixture library (blocking)**: a fixture MUST exist for every distinguishable
+  upstream outcome, for every GMA operation a tool depends on. On the v5 catalogue
+  surface those outcomes are HTTP `200`, `206`, `400`, `401`, `404`, `500`, plus a
+  simulated transport timeout (which has no HTTP response at all). On a surface that
+  exposes a `status.code` envelope, they are that envelope's codes. A tool MUST NOT
+  ship without its fixtures. Hand-crafting a fixture from the OpenAPI schema is
   acceptable when the real response cannot be captured; the fixture MUST record that
   it was hand-crafted.
 - **Must-cover cases (blocking)**: single-match auto-resolve; multi-match candidates;
-  zero-match; `PARTIAL_SUCCESS` caveat surfaced at top level; `TOO_MANY_EVENTS` →
-  narrow hint; multi-hop aggregation where one partial hop flags the whole result;
-  `BAD_REQUEST` and `FAILURE` → tool error; `401` → auth-flagged error. Each MUST be
-  covered by a test naming the case.
+  zero-match; partial-success caveat surfaced at top level; too-broad → narrow hint;
+  multi-hop aggregation where one partial hop flags the whole result; argument error
+  and upstream failure → tool error; `401` → auth-flagged error; timeout with partial
+  data vs timeout with none. Each MUST be covered by a test naming the case.
 - **Coverage gates (blocking, CI-enforced)**: minimum 90% line and 85% branch
   coverage across `src/`, with `core/` held to 95% line. Lowering a threshold
   requires the amendment procedure below; it is never a fix for a failing build.
@@ -326,4 +407,4 @@ governing document.
 - `AGENTS.md` / `CLAUDE.md` in this repository carry runtime development guidance and
   MUST NOT contradict this constitution.
 
-**Version**: 1.0.1 | **Ratified**: 2026-09-03 | **Last Amended**: 2026-09-03
+**Version**: 1.0.2 | **Ratified**: 2026-09-03 | **Last Amended**: 2026-09-03
