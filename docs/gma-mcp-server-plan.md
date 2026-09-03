@@ -11,6 +11,16 @@ This document is the output of a design interview. It captures **every decision*
 vertical slice (catalogue search + retrieve) that proves the whole pipeline
 end-to-end, then templatises for growth.
 
+> **Amended 2026-09-03.** §2 was originally written from GMA's *packaged*
+> `application.properties`. It has since been verified against the deployment cookbook
+> (`../all-chef-fdg/sbv2_gmafd_chef`), which **overrides several of those values**. Two
+> assumptions did not survive: the OKTA issuer (per-environment, not
+> `flutteruki.okta.com`) and GAHS fine-grained authorization (**off** in every deployed
+> environment). Corrections are marked ⚠️ *corrected* inline. **No architectural
+> decision changed** — the corrections affect stated facts and rationale, not the design.
+> Governance for this project lives in `.specify/memory/constitution.md`; where that
+> document and this one disagree, **the constitution wins** — this is a design record.
+
 ---
 
 ## 1. Design decisions (the whole tree, resolved)
@@ -20,7 +30,7 @@ end-to-end, then templatises for growth.
 | 1 | Topology | **Standalone server**, GMA as HTTP client | GMA is a BFF; the MCP server is just another HTTP consumer. Keeps GMA's build (Jacoco 95% line, Checkstyle, PMD) uncontaminated; independent deploy/scaling; free choice of language. |
 | 2 | Transport | **Both, HTTP-first** (Streamable HTTP for prod, stdio for local dev) | Remote HTTP serves the "single source many consumers" goal; stdio is ~free with the SDK and invaluable for local dev/debug. |
 | 3 | Internal structure | **Modular monolith**: `core` + domain modules; per-domain MCP endpoints | One thing to build/deploy/operate with a shared auth+client layer, while each *agent* sees a small, coherent tool list. |
-| 4 | Identity model | **Pass-through**, human-in-the-loop first | GMA does per-user field-stripping via GAHS. A service account would break that. Pass-through preserves GMA's entire authz model with zero GMA change. |
+| 4 | Identity model | **Pass-through**, human-in-the-loop first | Preserves GMA's entire authz model with zero GMA change. A service account would collapse every user's view into one. Note GAHS field-stripping is **currently off in all deployed envs** (§2), so today this preserves *group-level* authz — and preserves *field-level* unchanged the day GAHS is switched on. |
 | 5 | Token transport (HTTP) | **Standard MCP OAuth** (server = resource server) | Spec-blessed, keeps the server stateless/credential-free, future MCP hosts "just work". |
 | 6 | Tool strategy | **Curated, task-oriented** tools | Small, LLM-friendly tool surface. Auto-generating all of GMA's API would flood tool-selection and leak HTTP shape at the model. |
 | 7 | Tool ↔ GMA mapping | **Task-oriented** (collapse calls) with **hybrid resolve-or-disambiguate** | Ergonomic for agents; the discipline below keeps it safe. |
@@ -55,21 +65,64 @@ end-to-end, then templatises for growth.
 
 ## 2. How GMA works (the constraints that shaped this)
 
-Verified by reading the GMA codebase:
+Verified by reading the GMA codebase **and the deployment cookbook**
+(`../all-chef-fdg/sbv2_gmafd_chef`, verified 2026-09-03). Where the packaged
+`application.properties` and the Chef-rendered config disagree, **Chef wins** — several
+values below were originally taken from the packaged defaults and were wrong for every
+deployed environment.
 
-- **Auth**: Spring `oauth2ResourceServer().jwt()`. JWT is validated for **issuer**
-  (`spring.security.oauth2.resourceserver.jwt.issuer-uri=https://flutteruki.okta.com`)
-  and signature/expiry. **No audience validator** is configured. Access requires a
-  `groups` claim containing the configured `authority.group` (default `PPB`).
+- **Auth**: Spring `oauth2ResourceServer().jwt()`. JWT is validated for **issuer** and
+  signature/expiry. **No audience validator** is configured — confirmed by grepping the
+  whole codebase for `JwtDecoder`, `OAuth2TokenValidator`, `AudienceValidator` and
+  `JwtValidators` (zero non-test hits). Access requires a `groups` claim intersecting
+  the configured `authority.group`.
   → *Raw pass-through of a same-issuer, valid-group user token works without token
-  exchange.* (`SecurityFilterFactory.java`, `JwtAuthoritiesConverter.java`.)
+  exchange.* (`SecurityFilterFactory.java:35-70`, `JwtAuthoritiesConverter.java`.)
+- **Issuer is per-environment** — ⚠️ *corrected*. It is **not**
+  `https://flutteruki.okta.com`; that is only the packaged default
+  (`application.properties:13`), overridden in every deployed environment by
+  `attributes/{dev,stg,prd}.rb` → `application.properties.erb:214`:
+
+  | Env | `jwt.issuer-uri` |
+  |-----|------------------|
+  | dev | `https://fanduel.okta.com/oauth2/ausjlqxei9qSs2IwZ5d7` |
+  | stg | `https://fanduel.okta.com/oauth2/ausuwff4gwnqsRIWZ5d7` |
+  | prd | `https://fanduel.okta.com/oauth2/ausmnnjobetSCWwLW5d7` |
+
+  Each is a distinct **custom authorization server** under `fanduel.okta.com`, so a
+  token minted for one environment is not valid at another.
+  → *The accepted issuer MUST come from env-config (decision #11), and this
+  independently reinforces one-deploy-per-GMA-environment: environments are not
+  interchangeable at the token level.*
+- **`authority.group` is a real per-env group list**, not `PPB` — ⚠️ *corrected*.
+  `PPB` is the packaged default (`application.properties:178`); each deployed env sets
+  ~16 `app_*_<env>` OKTA groups (`attributes/prd.rb:19`). `okta.auth.enabled=true` in
+  all deployed envs (`attributes/common.rb:120`, `default_unless`, unoverridden), so
+  the `oktaAuthentication` filter chain — not `noAuthentication` — is the active one.
 - **Identity**: username is read from the JWT `name` claim
   (`JwtAuthenticationExtractor.java`).
-- **Fine-grained authz (GAHS)**: for every request, GMA forwards the **raw token**
-  (`source.getTokenValue()`) to GAHS and **strips** fields the user can't see/edit —
-  it never returns 403. Pass-through naturally satisfies GAHS (same bearer forwarded).
-  → *The MCP server does NOT try to detect stripping; the agent correctly sees exactly
-  what the human user is entitled to.*
+- **Fine-grained authz (GAHS) is currently OFF in every deployed environment** —
+  ⚠️ *corrected, and this is the most consequential correction in this document.*
+  `gahs.authorization.enabled` is set **nowhere in the entire `all-chef-fdg` repo** and
+  is absent from `application.properties.erb`, the only properties template Chef
+  deploys; the packaged default (`application.properties:19`) is `false`.
+  Mechanically: `GahsConfiguration.java:29` reads the flag,
+  `JwtAuthoritiesConverter.java:36` only calls GAHS `if (gahsAuthorizationEnabled)`,
+  and `MethodSecurityConfig.java:14` (`@ConditionalOnProperty havingValue="true"`)
+  does not even load.
+
+  **When enabled**, GMA forwards the **raw token** (`source.getTokenValue()`) to GAHS
+  and **strips** fields the user can't see/edit — it never returns 403. Pass-through
+  naturally satisfies that (same bearer forwarded).
+
+  → *Two consequences. (a) Pass-through remains non-negotiable: it is what makes the
+  coarse group check apply to the real user rather than a shared identity today, and
+  what makes GAHS work unchanged the day it is switched on — at which point any
+  non-pass-through identity would over-disclose **silently**, since GAHS strips rather
+  than 403s. (b) Until GAHS is on, the MCP server MUST NOT be documented, described in
+  a tool description, or presented to users as delivering per-user field-level
+  filtering. It delivers exactly the authorization GMA enforces, which is currently
+  group-level. The server still never tries to detect stripping.*
 - **Multi-instance aggregation**: catalogue responses are "aggregated by instance" and
   wrapped in a `status` envelope:
 
@@ -82,9 +135,18 @@ Verified by reading the GMA codebase:
   ```
 
   → *This is the machine-readable partial-failure contract the client parses.*
-- **Tracing**: GMA already uses **Micrometer Tracing + OpenTelemetry (OTLP)** and a
-  `request.id` MDC key. → *If the MCP server emits standard W3C `traceparent`, GMA
-  continues the trace natively — no GMA change.*
+- **Tracing**: GMA depends on **Micrometer Tracing + OpenTelemetry** (`gma-application/pom.xml`:
+  `micrometer-tracing`, `micrometer-tracing-bridge-otel`, `opentelemetry-exporter-otlp`,
+  `micrometer-registry-otlp`) and sets a `request.id` MDC key (`MdcKey.java:10`).
+  But — ⚠️ *corrected* — `management.tracing.enabled` is **`false` by default**
+  (`attributes/common.rb:33`) and is switched on **only in dev** (`attributes/dev.rb:40`,
+  sampling 0.1). No stg/prd attribute enables it, and `management.otlp.metrics.export.enabled=false`
+  in the deployed template. Prod observability is **Datadog**-based (`recipes/default.rb`
+  includes `datadog`, `datadog::jmx`, `datadog::http_check`).
+  → *"Trace correlation is free" holds in **dev only**. Emitting W3C `traceparent` is
+  still right and costs nothing, but do not plan prod GMA↔MCP trace correlation on it
+  without either enabling `management.tracing` in prod GMA or correlating through
+  Datadog instead. Decision #13 stands; its prod payoff does not, yet.*
 - **v1 surface (v5 `api_catalogue.yaml`)** operations the v1 tools map onto:
   - `GET /v5/instances` (`searchInstances`)
   - `POST /v5/searchByName` (`searchByName`) — case-insensitive name substring over
@@ -94,15 +156,34 @@ Verified by reading the GMA codebase:
 
 ### Does GMA need to change?
 
-**Essentially no.** No auth change (pass-through works), no tracing change (OTel is
-already there). The only GMA-side items are **verification/confirmation**, not code:
+**Still essentially no** — pass-through works against GMA as deployed. The original
+verification list is now **resolved against the cookbook**; the outcome is below, and it
+changed two assumptions rather than confirming all four.
 
-1. Confirm the deployed (prod) issuer matches and no environment profile adds an
-   audience validator we didn't read.
-2. Confirm prod GMA runs with `okta.auth.enabled=true` and
-   `gahs.authorization.enabled=true` (local defaults are `false`).
-3. (Optional, later) If deep Splunk pivots are wanted, confirm GMA echoes/propagates
-   an inbound correlation id alongside `traceparent`.
+| # | Original item | Outcome |
+|---|---------------|---------|
+| 1 | Confirm deployed prod issuer + no audience validator | ⚠️ **Issuer was wrong** in this doc (see §2); **no audience validator** ✅ confirmed |
+| 2 | Confirm `okta.auth.enabled=true` and `gahs.authorization.enabled=true` | `okta.auth.enabled=true` ✅; **`gahs.authorization.enabled` is OFF in all envs** ❌ |
+| 3 | (Optional) correlation-id propagation for Splunk pivots | Still open — and note `management.tracing.enabled` is dev-only (see §2) |
+
+Remaining open items:
+
+1. **`TODO(GMA_CONFIG_LOADING)`** — it could not be established from the cookbook *how*
+   Spring loads the Chef-rendered `/var/app/gma-service/config/application.properties`.
+   The systemd unit (`initd/.../springboot-scriptless.service.erb`) execs the jar with no
+   `spring.config.location`, no `--spring.config.*` flag and no `EnvironmentFile`, and
+   `gma-service.conf.erb` sets only `JAVA_OPTS`; peer cookbooks (`sbv2_bochfd_chef`,
+   `sbv2_spbfd_chef`) pass `spring.config.location` explicitly. This does **not** change
+   the GAHS conclusion (unset in Chef, `false` when packaged — off either way), but it
+   means the effective value of any *Chef-only* property is unconfirmed. Worth a human
+   check before relying on Chef to carry a property.
+2. **Decide whether GAHS should be on** before this server is used for anything
+   sensitive. This is a GMA/platform decision, not an MCP one, but it determines whether
+   "the agent sees exactly what the user is entitled to" is field-level or group-level.
+   The MCP server needs **no change either way** — that is the point of pass-through.
+3. **Obtain a real token per environment** for the Phase 5 manual validation, from the
+   correct per-env custom authorization server, with membership in that env's
+   `app_*_<env>` groups.
 
 ---
 
@@ -252,11 +333,17 @@ Never auto-pick from >1 plausible match.
 ## 5. Step-by-step implementation
 
 ### Phase 0 — Confirm GMA assumptions (no code)
-1. Confirm prod GMA issuer + that no profile adds an audience validator.
-2. Confirm prod runs `okta.auth.enabled=true`, `gahs.authorization.enabled=true`.
+1. ~~Confirm prod GMA issuer + that no profile adds an audience validator.~~
+   ✅ **Done 2026-09-03** via `sbv2_gmafd_chef`. No audience validator; issuer is
+   per-env and was **wrong in this doc** — corrected in §2.
+2. ~~Confirm prod runs `okta.auth.enabled=true`, `gahs.authorization.enabled=true`.~~
+   ✅ **Done 2026-09-03.** Okta auth is on; **GAHS is off in all envs** — see §2 and
+   the "Does GMA need to change?" table for what that does and does not change.
 3. Capture **real sample responses** from `/v5/instances`, `/v5/searchByName`,
    `/v5/{…}/{id}` for the fixture library (incl. a `PARTIAL_SUCCESS` example if
-   obtainable; otherwise hand-craft from the schema).
+   obtainable; otherwise hand-craft from the schema — and mark it hand-crafted).
+   Note `search.maxEvents=200` (`attributes/common.rb:65`) is the threshold that
+   produces `TOO_MANY_EVENTS`, so size the narrow-hint fixture against that.
 
 ### Phase 1 — Scaffold the repo
 4. `check_repo_name` for the slug (e.g. `gma-mcp-server`), then scaffold via the
@@ -356,10 +443,19 @@ Never auto-pick from >1 plausible match.
 
 Build a **standalone TypeScript MCP server** (new repo, Prefab-scaffolded) that speaks
 **Streamable HTTP** with **standard MCP OAuth**, forwards the **human user's OKTA token
-straight through** to GMA (preserving GMA's per-user GAHS authz with **no GMA code
-change**), and exposes **three task-oriented catalogue tools** built on GMA's **v5
-catalogue API**. A **modular monolith** structure (shared `core` + domain modules,
-per-domain endpoints) keeps each agent's tool list small and makes future growth
-additive. The **envelope-aware client** and **mandatory structured completeness caveat**
-ensure agents never present multi-instance partial data as complete — the one
+straight through** to GMA (preserving **whatever authorization GMA enforces**, with
+**no GMA code change**), and exposes **three task-oriented catalogue tools** built on
+GMA's **v5 catalogue API**. A **modular monolith** structure (shared `core` + domain
+modules, per-domain endpoints) keeps each agent's tool list small and makes future
+growth additive. The **envelope-aware client** and **mandatory structured completeness
+caveat** ensure agents never present multi-instance partial data as complete — the one
 correctness trap that matters most in a risk/trading context.
+
+Two corrections from verifying the deployed config (§2), both worth carrying into the
+spec: GMA's OKTA issuer is a **per-environment custom authorization server** (not
+`flutteruki.okta.com`), so the accepted issuer comes from env-config and tokens are not
+portable across environments; and **GAHS fine-grained field-stripping is currently off
+in every deployed environment**, so today pass-through preserves *group-level* authz.
+Pass-through is still non-negotiable — it is what makes GAHS work unchanged the day it
+is enabled, at which point any other identity model would over-disclose silently.
+Until then, do not describe this server as delivering per-user field-level filtering.
