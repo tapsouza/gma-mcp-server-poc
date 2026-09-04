@@ -1,0 +1,405 @@
+{
+  "successfulConfigSources": ["urn:i:PP:PP", "urn:i:BF:BF"],
+  "results": [
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-1",
+        "name": "League A1"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-2",
+        "name": "League A2"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-3",
+        "name": "League A3"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-4",
+        "name": "League A4"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-5",
+        "name": "League A5"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-6",
+        "name": "League A6"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-7",
+        "name": "League A7"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-8",
+        "name": "League A8"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-9",
+        "name": "League A9"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-10",
+        "name": "League A10"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-11",
+        "name": "League A11"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-12",
+        "name": "League A12"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-13",
+        "name": "League A13"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-14",
+        "name": "League A14"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-15",
+        "name": "League A15"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-16",
+        "name": "League A16"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-17",
+        "name": "League A17"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-18",
+        "name": "League A18"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-19",
+        "name": "League A19"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-20",
+        "name": "League A20"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-21",
+        "name": "League A21"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-22",
+        "name": "League A22"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-23",
+        "name": "League A23"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-24",
+        "name": "League A24"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-25",
+        "name": "League A25"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-26",
+        "name": "League A26"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-27",
+        "name": "League A27"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-28",
+        "name": "League A28"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-29",
+        "name": "League A29"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-30",
+        "name": "League A30"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-31",
+        "name": "League A31"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-32",
+        "name": "League A32"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-33",
+        "name": "League A33"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-34",
+        "name": "League A34"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-35",
+        "name": "League A35"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-36",
+        "name": "League A36"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-37",
+        "name": "League A37"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-38",
+        "name": "League A38"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-39",
+        "name": "League A39"
+      }
+    },
+    {
+      "superclass": {
+        "id": "urn:sc:football",
+        "name": "Football"
+      },
+      "subclass": {
+        "id": "urn:sub:league-40",
+        "name": "League A40"
+      }
+    }
+  ]
+}

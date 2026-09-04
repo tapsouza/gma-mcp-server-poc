@@ -1,0 +1,20 @@
+{
+  "successfulConfigSources": ["urn:i:PP:PP", "urn:i:BF:BF"],
+  "results": [
+    {
+      "superclass": { "id": "urn:sc:football", "name": "Football" },
+      "subclass": { "id": "urn:sub:premier-league", "name": "Premier League" },
+      "eventType": { "id": "urn:et:pl-winner", "name": "Winner" }
+    },
+    {
+      "superclass": { "id": "urn:sc:rugby", "name": "Rugby Union" },
+      "subclass": { "id": "urn:sub:six-nations", "name": "Six Nations" },
+      "eventType": { "id": "urn:et:6n-winner", "name": "Winner" }
+    },
+    {
+      "superclass": { "id": "urn:sc:tennis", "name": "Tennis" },
+      "subclass": { "id": "urn:sub:wimbledon", "name": "Wimbledon" },
+      "eventType": { "id": "urn:et:wim-winner", "name": "Winner" }
+    }
+  ]
+}

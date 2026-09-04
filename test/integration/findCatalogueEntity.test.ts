@@ -1,0 +1,477 @@
+import { HttpResponse, http } from 'msw';
+import { describe, expect, it } from 'vitest';
+import { createGmaClient } from '../../src/core/gmaClient.js';
+import type { ToolError } from '../../src/core/types.js';
+import {
+  FIND_CATALOGUE_ENTITY_DESCRIPTION,
+  findCatalogueEntity
+} from '../../src/domains/catalogue/tools/findCatalogueEntity.js';
+import type { CatalogueEntity } from '../../src/domains/catalogue/schemas.js';
+import {
+  GMA_BASE_URL,
+  TEST_TOKEN,
+  requestRecorder,
+  testConfig,
+  useGmaServer
+} from '../helpers/gma.js';
+
+import childrenPartial from '../fixtures/gma/entities/206-partial.json' with { type: 'json' };
+import eventTypes from '../fixtures/gma/entities/200-eventTypes-children.json' with { type: 'json' };
+import superclass from '../fixtures/gma/entities/200-superclass.json' with { type: 'json' };
+import search400 from '../fixtures/gma/searchByName/400-bad-request.json' with { type: 'json' };
+import search401 from '../fixtures/gma/searchByName/401-unauthorized.json' with { type: 'json' };
+import search500 from '../fixtures/gma/searchByName/500-server-error.json' with { type: 'json' };
+import manyMatches from '../fixtures/gma/searchByName/200-many-matches.json' with { type: 'json' };
+import multiMatch from '../fixtures/gma/searchByName/200-multi-match.json' with { type: 'json' };
+import noMatch from '../fixtures/gma/searchByName/200-no-match.json' with { type: 'json' };
+import singleMatch from '../fixtures/gma/searchByName/200-single-match.json' with { type: 'json' };
+
+/** User Story 2 (P2) acceptance scenarios 1 to 6. */
+
+const server = useGmaServer();
+const SEARCH = `${GMA_BASE_URL}/v5/searchByName`;
+const SUBCLASS_CHILDREN = `${GMA_BASE_URL}/v5/subclasses/:id/eventTypes`;
+const SUPERCLASS = `${GMA_BASE_URL}/v5/superclasses/:id`;
+
+function run(
+  args: Parameters<typeof findCatalogueEntity>[3],
+  overrides: Parameters<typeof testConfig>[0] = {}
+) {
+  const config = testConfig(overrides);
+  return findCatalogueEntity(createGmaClient({ config }), config, TEST_TOKEN, args);
+}
+
+/** Search returns the given body; the subclass second hop returns event types. */
+function happyPath(searchBody: unknown, status = 200) {
+  server.use(
+    http.post(SEARCH, () => HttpResponse.json(searchBody, { status })),
+    http.get(SUBCLASS_CHILDREN, () => HttpResponse.json(eventTypes))
+  );
+}
+
+describe('find_catalogue_entity (Story 2, P2)', () => {
+  describe('case: scenario 1 — single match resolves with its immediate children (FR-013, SC-011)', () => {
+    it('returns the resolved entity plus one level of children', async () => {
+      happyPath(singleMatch);
+
+      const payload = await run({ name: 'Premier League' });
+
+      expect(payload.kind).toBe('resolved');
+      expect((payload.entity as CatalogueEntity).name).toBe('Premier League');
+      expect((payload.children as CatalogueEntity[]).map((c) => c.name)).toEqual([
+        'Winner',
+        'Top Goalscorer',
+        'Relegation'
+      ]);
+    });
+
+    it('answers in ONE tool call, with no manual id lookup (SC-004, SC-011)', async () => {
+      const { seen, record } = requestRecorder();
+      server.use(
+        http.post(SEARCH, async ({ request }) => {
+          await record(request);
+          return HttpResponse.json(singleMatch);
+        }),
+        http.get(SUBCLASS_CHILDREN, async ({ request }) => {
+          await record(request);
+          return HttpResponse.json(eventTypes);
+        })
+      );
+
+      await run({ name: 'Premier League' });
+
+      // Two GMA hops, but ONE tool call — the traversal is the tool's job.
+      expect(seen).toHaveLength(2);
+    });
+
+    it('aggregates completeness across BOTH hops when both succeeded', async () => {
+      happyPath(singleMatch);
+
+      const payload = await run({ name: 'Premier League' });
+      const completeness = payload.completeness as { complete: boolean; outcome: string };
+
+      expect(completeness.complete).toBe(true);
+      expect(completeness.outcome).toBe('COMPLETE');
+    });
+
+    it('gives each child the resolved entity in its ancestor chain', async () => {
+      happyPath(singleMatch);
+
+      const payload = await run({ name: 'Premier League' });
+      const children = payload.children as CatalogueEntity[];
+
+      for (const child of children) {
+        expect(child.type).toBe('eventType');
+        expect(child.ancestors.map((a) => a.name)).toEqual(['Football', 'Premier League']);
+      }
+    });
+
+    it('traverses a matched superclass to its subclasses', async () => {
+      server.use(
+        http.post(SEARCH, () =>
+          HttpResponse.json({
+            successfulConfigSources: ['urn:i:PP:PP'],
+            results: [{ superclass: { id: 'urn:sc:football', name: 'Football' } }]
+          })
+        ),
+        http.get(SUPERCLASS, () => HttpResponse.json(superclass))
+      );
+
+      const payload = await run({ name: 'Football' });
+
+      expect(payload.kind).toBe('resolved');
+      expect((payload.children as CatalogueEntity[]).map((c) => c.name)).toEqual([
+        'Premier League',
+        'Championship'
+      ]);
+      expect((payload.children as CatalogueEntity[])[0]!.type).toBe('subclass');
+    });
+
+    it('makes NO second hop for a matched event type, and does not call that a failure (FR-025)', async () => {
+      const { seen, record } = requestRecorder();
+      server.use(
+        http.post(SEARCH, async ({ request }) => {
+          await record(request);
+          return HttpResponse.json({
+            successfulConfigSources: ['urn:i:PP:PP'],
+            results: [
+              {
+                superclass: { id: 'urn:sc:football', name: 'Football' },
+                subclass: { id: 'urn:sub:pl', name: 'Premier League' },
+                eventType: { id: 'urn:et:w', name: 'Winner' }
+              }
+            ]
+          });
+        })
+      );
+
+      const payload = await run({ name: 'Winner' });
+
+      // One hop only: an event type's children would be events, out of scope.
+      expect(seen).toHaveLength(1);
+      expect(payload.kind).toBe('resolved');
+      expect(payload.children).toEqual([]);
+      // Crucially, "no children in scope" must not read as an incomplete answer.
+      expect((payload.completeness as { complete: boolean }).complete).toBe(true);
+    });
+  });
+
+  describe('case: scenario 2 — several matches return all candidates, none resolved (FR-014, SC-002)', () => {
+    it('returns every candidate and resolves nothing', async () => {
+      server.use(http.post(SEARCH, () => HttpResponse.json(multiMatch)));
+
+      const payload = await run({ name: 'Winner' });
+
+      expect(payload.kind).toBe('candidates');
+      expect(payload.candidates).toHaveLength(3);
+      expect(payload).not.toHaveProperty('entity');
+    });
+
+    it('makes no second hop, since nothing was resolved to traverse from', async () => {
+      const { seen, record } = requestRecorder();
+      server.use(
+        http.post(SEARCH, async ({ request }) => {
+          await record(request);
+          return HttpResponse.json(multiMatch);
+        })
+      );
+
+      await run({ name: 'Winner' });
+
+      expect(seen).toHaveLength(1);
+    });
+
+    it('gives a human enough detail to choose between same-named candidates', async () => {
+      server.use(http.post(SEARCH, () => HttpResponse.json(multiMatch)));
+
+      const payload = await run({ name: 'Winner' });
+      const candidates = payload.candidates as CatalogueEntity[];
+
+      const paths = candidates.map((c) => [...c.ancestors.map((a) => a.name), c.name].join(' / '));
+      expect(new Set(paths).size).toBe(3);
+      expect(paths).toContain('Football / Premier League / Winner');
+    });
+  });
+
+  describe('case: scenario 3 — no match is "none", not an error (FR-010)', () => {
+    it('returns kind none with a completeness verdict', async () => {
+      server.use(http.post(SEARCH, () => HttpResponse.json(noMatch)));
+
+      const payload = await run({ name: 'Nonexistent Competition' });
+
+      expect(payload.kind).toBe('none');
+      expect(payload).toHaveProperty('completeness');
+      expect((payload.completeness as { complete: boolean }).complete).toBe(true);
+    });
+
+    it('resolves rather than rejecting, so the agent can report absence plainly', async () => {
+      server.use(http.post(SEARCH, () => HttpResponse.json(noMatch)));
+
+      await expect(run({ name: 'Nonexistent' })).resolves.toBeDefined();
+    });
+
+    it('carries no caveat for a genuinely empty answer', async () => {
+      server.use(http.post(SEARCH, () => HttpResponse.json(noMatch)));
+
+      const payload = await run({ name: 'Nonexistent' });
+
+      expect((payload.completeness as { caveat: string | null }).caveat).toBeNull();
+    });
+  });
+
+  describe('case: scenario 4 — too broad returns no resolution plus a narrowing hint (FR-015)', () => {
+    it('returns tooBroad with the match count and the fields to narrow by', async () => {
+      server.use(http.post(SEARCH, () => HttpResponse.json(manyMatches)));
+
+      const payload = await run({ name: 'a' });
+
+      expect(payload.kind).toBe('tooBroad');
+      expect(payload.matchCount).toBe(40);
+      expect(payload.narrowBy).toContain('instances');
+      expect(payload).not.toHaveProperty('entity');
+      expect(payload).not.toHaveProperty('candidates');
+    });
+
+    it('marks a too-broad answer incomplete even though every instance answered', async () => {
+      server.use(http.post(SEARCH, () => HttpResponse.json(manyMatches)));
+
+      const payload = await run({ name: 'a' });
+      const completeness = payload.completeness as {
+        complete: boolean;
+        outcome: string;
+        caveat: string;
+      };
+
+      expect(completeness.complete).toBe(false);
+      expect(completeness.outcome).toBe('TOO_BROAD');
+      expect(completeness.caveat).toContain('Narrow');
+    });
+
+    it('honours a lower configured threshold', async () => {
+      server.use(http.post(SEARCH, () => HttpResponse.json(multiMatch)));
+
+      const payload = await run({ name: 'Winner' }, { maxCandidates: 2 });
+
+      expect(payload.kind).toBe('tooBroad');
+      expect(payload.matchCount).toBe(3);
+    });
+  });
+
+  describe('case: scenario 5 — a partial hop marks the WHOLE result incomplete (FR-008, SC-011)', () => {
+    it('marks the result incomplete when hop 2 ALONE was partial', async () => {
+      // The case the slice exists to prove: hop 1 fully succeeded, hop 2 did not, and
+      // the aggregated verdict must reflect the worse of the two.
+      server.use(
+        http.post(SEARCH, () => HttpResponse.json(singleMatch)),
+        http.get(SUBCLASS_CHILDREN, () => HttpResponse.json(childrenPartial, { status: 206 }))
+      );
+
+      const payload = await run({ name: 'Premier League' });
+      const completeness = payload.completeness as {
+        complete: boolean;
+        outcome: string;
+        failedInstances: string[];
+        caveat: string;
+      };
+
+      expect(payload.kind).toBe('resolved');
+      expect((payload.children as CatalogueEntity[]).length).toBeGreaterThan(0);
+      expect(completeness.complete).toBe(false);
+      expect(completeness.outcome).toBe('PARTIAL');
+      expect(completeness.failedInstances).toEqual(['urn:i:BF:BF']);
+      expect(completeness.caveat).toContain('urn:i:BF:BF');
+    });
+
+    it('marks the result incomplete when hop 1 ALONE was partial', async () => {
+      server.use(
+        http.post(SEARCH, () =>
+          HttpResponse.json(
+            {
+              successfulConfigSources: ['urn:i:PP:PP'],
+              failedConfigSources: ['urn:i:BF:BF'],
+              errors: [{ configSource: 'urn:i:BF:BF', message: 'search provider unavailable' }],
+              results: singleMatch.results
+            },
+            { status: 206 }
+          )
+        ),
+        http.get(SUBCLASS_CHILDREN, () => HttpResponse.json(eventTypes))
+      );
+
+      const payload = await run({ name: 'Premier League' });
+      const completeness = payload.completeness as { complete: boolean; failedInstances: string[] };
+
+      expect(completeness.complete).toBe(false);
+      expect(completeness.failedInstances).toEqual(['urn:i:BF:BF']);
+    });
+
+    it('names every instance that failed at ANY step, as a union', async () => {
+      server.use(
+        http.post(SEARCH, () =>
+          HttpResponse.json(
+            {
+              successfulConfigSources: ['urn:i:PP:PP'],
+              failedConfigSources: ['urn:i:SBG:SBG'],
+              errors: [{ configSource: 'urn:i:SBG:SBG', message: 'hop one failure' }],
+              results: singleMatch.results
+            },
+            { status: 206 }
+          )
+        ),
+        http.get(SUBCLASS_CHILDREN, () => HttpResponse.json(childrenPartial, { status: 206 }))
+      );
+
+      const payload = await run({ name: 'Premier League' });
+      const completeness = payload.completeness as { failedInstances: string[] };
+
+      // Copy before sorting: the verdict's arrays are frozen so no caller can edit it.
+      expect([...completeness.failedInstances].sort()).toEqual(['urn:i:BF:BF', 'urn:i:SBG:SBG']);
+    });
+
+    it('reports TIMEOUT_PARTIAL when hop 2 times out but hop 1 produced the entity (FR-010)', async () => {
+      server.use(
+        http.post(SEARCH, () => HttpResponse.json(singleMatch)),
+        http.get(SUBCLASS_CHILDREN, async () => {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          return HttpResponse.json(eventTypes);
+        })
+      );
+
+      const payload = await run({ name: 'Premier League' }, { requestTimeoutMs: 30 });
+      const completeness = payload.completeness as { complete: boolean; outcome: string };
+
+      // The entity IS returned — it is the answer to "find X" — but unmissably
+      // flagged as incomplete rather than silently missing its children.
+      expect(payload.kind).toBe('resolved');
+      expect(payload.children).toEqual([]);
+      expect(completeness.complete).toBe(false);
+      expect(completeness.outcome).toBe('TIMEOUT_PARTIAL');
+    });
+
+    it('still surfaces a 401 on hop 2 as an auth error, never as a softened result', async () => {
+      server.use(
+        http.post(SEARCH, () => HttpResponse.json(singleMatch)),
+        http.get(SUBCLASS_CHILDREN, () => HttpResponse.json({ status: 401 }, { status: 401 }))
+      );
+
+      try {
+        await run({ name: 'Premier League' });
+        expect.unreachable('an expired identity on hop 2 must not resolve');
+      } catch (error) {
+        expect((error as ToolError).kind).toBe('auth');
+      }
+    });
+  });
+
+  describe('case: scenario 6 — explicit instances honoured, omitted falls back to config (FR-017)', () => {
+    it('sends only the requested instances, in the request BODY (research.md R3)', async () => {
+      const { seen, record } = requestRecorder();
+      server.use(
+        http.post(SEARCH, async ({ request }) => {
+          await record(request);
+          return HttpResponse.json(noMatch);
+        })
+      );
+
+      await run({ name: 'Premier League', instances: ['PP'] });
+
+      expect(seen[0]!.body).toEqual({
+        name: 'Premier League',
+        instancesList: ['urn:i:PP:PP']
+      });
+      expect(seen[0]!.instancesList).toEqual([]);
+    });
+
+    it('falls back to the configured default set when instances is omitted', async () => {
+      const { seen, record } = requestRecorder();
+      server.use(
+        http.post(SEARCH, async ({ request }) => {
+          await record(request);
+          return HttpResponse.json(noMatch);
+        })
+      );
+
+      await run({ name: 'Premier League' });
+
+      expect((seen[0]!.body as { instancesList: string[] }).instancesList).toEqual([
+        'urn:i:PP:PP',
+        'urn:i:BF:BF'
+      ]);
+    });
+
+    it('scopes the SECOND hop to the same instances', async () => {
+      const { seen, record } = requestRecorder();
+      server.use(
+        http.post(SEARCH, () => HttpResponse.json(singleMatch)),
+        http.get(SUBCLASS_CHILDREN, async ({ request }) => {
+          await record(request);
+          return HttpResponse.json(eventTypes);
+        })
+      );
+
+      await run({ name: 'Premier League', instances: ['PP'] });
+
+      expect(seen[0]!.instancesList).toEqual(['urn:i:PP:PP']);
+    });
+
+    it('rejects an unknown instance code before making any GMA call (SC-008)', async () => {
+      // No handlers registered: if a call were made, msw's onUnhandledRequest:'error'
+      // would fail the test. So this also proves no request went out.
+      try {
+        await run({ name: 'Premier League', instances: ['Not A Code'] });
+        expect.unreachable('an unknown instance code must be rejected');
+      } catch (error) {
+        const toolError = error as ToolError;
+        expect(toolError.kind).toBe('argument');
+        expect(toolError.message).toContain('list_instances');
+      }
+    });
+
+    it('rejects an explicitly empty instances list rather than widening the query', async () => {
+      try {
+        await run({ name: 'Premier League', instances: [] });
+        expect.unreachable('an empty instances list must be rejected');
+      } catch (error) {
+        expect((error as ToolError).kind).toBe('argument');
+      }
+    });
+  });
+
+  describe('case: terminal failures on hop 1 (FR-010, SC-008)', () => {
+    it.each([
+      [400, search400, 'argument'],
+      [401, search401, 'auth'],
+      [500, search500, 'upstream']
+    ] as const)('maps HTTP %i on search to kind %s', async (status, body, kind) => {
+      server.use(http.post(SEARCH, () => HttpResponse.json(body, { status })));
+
+      try {
+        await run({ name: 'Premier League' });
+        expect.unreachable(`HTTP ${status} must not resolve`);
+      } catch (error) {
+        const toolError = error as ToolError;
+        expect(toolError.kind).toBe(kind);
+        expect(toolError).not.toHaveProperty('completeness');
+      }
+    });
+  });
+
+  describe('case: the description forbids auto-picking and mandates relaying caveats (FR-009, FR-014)', () => {
+    it('tells the agent not to pick from several candidates', () => {
+      const lower = FIND_CATALOGUE_ENTITY_DESCRIPTION.toLowerCase();
+
+      expect(lower).toContain('do not pick one yourself');
+      expect(lower).toContain('ask which they mean');
+    });
+
+    it('tells the agent to relay completeness caveats', () => {
+      expect(FIND_CATALOGUE_ENTITY_DESCRIPTION.toLowerCase()).toContain('relay');
+    });
+
+    it('uses no GMA DTO vocabulary (Principle IV)', () => {
+      expect(FIND_CATALOGUE_ENTITY_DESCRIPTION).not.toContain('configSource');
+      expect(FIND_CATALOGUE_ENTITY_DESCRIPTION).not.toContain('instancesList');
+      expect(FIND_CATALOGUE_ENTITY_DESCRIPTION).not.toContain('v5');
+    });
+  });
+});

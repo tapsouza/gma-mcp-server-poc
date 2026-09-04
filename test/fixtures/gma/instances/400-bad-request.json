@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-09-03T10:15:30.000Z",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Invalid value for parameter 'instancesList'",
+  "path": "/v5/instances"
+}

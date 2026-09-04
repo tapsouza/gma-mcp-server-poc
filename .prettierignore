@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+.idea/
+
+# Governance and design artefacts are authored prose, not source. Reformatting
+# them would churn the spec, constitution, and plan for no benefit.
+.specify/
+.claude/
+specs/
+docs/

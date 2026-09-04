@@ -1,0 +1,9 @@
+{
+  "successfulConfigSources": ["urn:i:PP:PP", "urn:i:BF:BF"],
+  "results": [
+    {
+      "superclass": { "id": "urn:sc:football", "name": "Football" },
+      "subclass": { "id": "urn:sub:premier-league", "name": "Premier League" }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "successfulConfigSources": ["urn:i:PP:PP", "urn:i:BF:BF"],
+  "eventType": {
+    "id": "urn:et:pl-winner",
+    "name": "Winner",
+    "subclass": {
+      "id": "urn:sub:premier-league",
+      "name": "Premier League",
+      "superclass": { "id": "urn:sc:football", "name": "Football" }
+    }
+  }
+}

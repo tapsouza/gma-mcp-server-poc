@@ -1,0 +1,7 @@
+{
+  "successfulConfigSources": ["urn:i:PP:PP", "urn:i:BF:BF"],
+  "instances": [
+    { "id": "urn:i:PP:PP", "name": "PaddyPower" },
+    { "id": "urn:i:BF:BF", "name": "Betfair" }
+  ]
+}

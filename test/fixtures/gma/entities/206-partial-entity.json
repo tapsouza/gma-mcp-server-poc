@@ -1,0 +1,15 @@
+{
+  "successfulConfigSources": ["urn:i:PP:PP"],
+  "failedConfigSources": ["urn:i:BF:BF"],
+  "errors": [
+    {
+      "configSource": "urn:i:BF:BF",
+      "message": "Config source returned no catalogue data for this identifier"
+    }
+  ],
+  "subclass": {
+    "id": "urn:sub:premier-league",
+    "name": "Premier League",
+    "superclass": { "id": "urn:sc:football", "name": "Football" }
+  }
+}
