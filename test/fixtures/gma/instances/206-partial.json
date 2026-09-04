@@ -1,0 +1,11 @@
+{
+  "successfulConfigSources": ["urn:i:PP:PP"],
+  "failedConfigSources": ["urn:i:BF:BF"],
+  "errors": [
+    {
+      "configSource": "urn:i:BF:BF",
+      "message": "Upstream config source did not respond within the read timeout"
+    }
+  ],
+  "instances": [{ "id": "urn:i:PP:PP", "name": "PaddyPower" }]
+}

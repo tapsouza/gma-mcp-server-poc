@@ -11,15 +11,24 @@ This document is the output of a design interview. It captures **every decision*
 vertical slice (catalogue search + retrieve) that proves the whole pipeline
 end-to-end, then templatises for growth.
 
-> **Amended 2026-09-03.** §2 was originally written from GMA's *packaged*
-> `application.properties`. It has since been verified against the deployment cookbook
-> (`../all-chef-fdg/sbv2_gmafd_chef`), which **overrides several of those values**. Two
-> assumptions did not survive: the OKTA issuer (per-environment, not
-> `flutteruki.okta.com`) and GAHS fine-grained authorization (**off** in every deployed
-> environment). Corrections are marked ⚠️ *corrected* inline. **No architectural
-> decision changed** — the corrections affect stated facts and rationale, not the design.
-> Governance for this project lives in `.specify/memory/constitution.md`; where that
-> document and this one disagree, **the constitution wins** — this is a design record.
+> **Amended 2026-09-03** (two rounds). This document was originally written from GMA's
+> *packaged* `application.properties` and from an assumed response contract. Both have
+> since been verified against the deployment cookbook
+> (`../all-chef-fdg/sbv2_gmafd_chef`) and GMA's v5 OpenAPI spec
+> (`api_catalogue.yaml`). **Three assumptions did not survive**:
+>
+> 1. the OKTA issuer (per-environment custom authz server, not `flutteruki.okta.com`);
+> 2. GAHS fine-grained authorization (**off** in every deployed environment);
+> 3. the partial-failure contract (v5 uses **HTTP 206 + `*ConfigSources`**, not a
+>    `status.code` envelope — §2, §4.1, §4.2).
+>
+> A fourth item is a **scope decision, not a correction**: the Prefab scaffold is
+> **deferred while development is local-only** (decisions #15, Phase 1).
+>
+> Corrections are marked ⚠️ inline. **No architectural decision changed** — they affect
+> stated facts, field names, and rationale, not the design. Governance lives in
+> `.specify/memory/constitution.md` (v1.0.2); where that document and this one disagree,
+> **the constitution wins** — this is a design record.
 
 ---
 
@@ -34,14 +43,14 @@ end-to-end, then templatises for growth.
 | 5 | Token transport (HTTP) | **Standard MCP OAuth** (server = resource server) | Spec-blessed, keeps the server stateless/credential-free, future MCP hosts "just work". |
 | 6 | Tool strategy | **Curated, task-oriented** tools | Small, LLM-friendly tool surface. Auto-generating all of GMA's API would flood tool-selection and leak HTTP shape at the model. |
 | 7 | Tool ↔ GMA mapping | **Task-oriented** (collapse calls) with **hybrid resolve-or-disambiguate** | Ergonomic for agents; the discipline below keeps it safe. |
-| 8 | GMA client | **Envelope-aware** | Parses GMA's `status` envelope (per-instance success/failure) so partial data is never presented as complete. |
-| 9 | Status mapping | Partial = **result + structured caveat**; `BAD_REQUEST`/`FAILURE` = tool error; `401` = flagged auth error | Multi-instance partial failure is normal operation for a BFF, not an error — but the caveat must be unmissable. |
+| 8 | GMA client | **Completeness-aware** | Derives per-instance success/failure from the v5 signal (HTTP 200/206 + `successfulConfigSources`/`failedConfigSources` — ⚠️ *not* a `status` envelope, see §2) so partial data is never presented as complete. |
+| 9 | Outcome mapping | Partial (HTTP 206) = **result + structured caveat**; `400`/`500` = tool error; `401` = flagged auth error | Multi-instance partial failure is normal operation for a BFF, not an error — but the caveat must be unmissable. See §4.2. |
 | 10 | Language | **TypeScript** | MCP spec is TS-first, best Streamable-HTTP support; owned by a TS team; no value in sharing Java DTOs (we deliberately hide them). |
 | 11 | Environment routing | **Env-config** (one deploy per GMA env); GMA base URL never a tool arg | Agents must not choose prod-vs-QA; it's an operational concern. Uses the org's existing per-brand deployment config convention. |
 | 12 | Instances param | **Config default + optional per-tool override + `list_instances` tool** | Naive queries just work; power users narrow; agents can discover valid brand codes. |
-| 13 | Observability | **OTel-instrumented**; propagate `traceparent` to GMA | GMA already runs Micrometer + OpenTelemetry (OTLP), so trace correlation is free. |
-| 14 | Testing | **Unit + mocked-GMA integration** + thin **MCP-protocol smoke**; live-GMA manual | Correctness-critical logic (resolution, disambiguation, caveat) is deterministically testable against fixtures covering every status code. |
-| 15 | Repo & scaffold | **New repo**, scaffolded via **Prefab TS template** | Consistent with standalone/TS-team/env-config decisions; inherits org pipeline, TLS, monitoring. |
+| 13 | Observability | **OTel-instrumented**; propagate `traceparent` to GMA | GMA depends on Micrometer + OpenTelemetry, but ⚠️ tracing is **enabled only in dev** (§2); prod uses Datadog. Emitting `traceparent` still costs nothing and is correct. |
+| 14 | Testing | **Unit + mocked-GMA integration** + thin **MCP-protocol smoke**; live-GMA manual | Correctness-critical logic (resolution, disambiguation, caveat) is deterministically testable against fixtures covering every **HTTP outcome** (200/206/400/401/404/500 + simulated timeout). |
+| 15 | Repo & scaffold | **New repo**; Prefab TS template **deferred while local-only** (decided 2026-09-03) | Nothing is deployed in v1, so the template's pipeline/TLS/monitoring value is unrealised. Still required before any non-local deployment. Env-config discipline (§invariant 4) is kept regardless, which is what keeps later adoption a config exercise. |
 | 16 | v1 surface | **v4/v5 `api_catalogue.yaml`** (avoid deprecated `search.yaml` market ops) | README flags v4/v5 as the current catalogue surface; don't build new tools on `deprecated: true` endpoints. |
 | 17 | v1 tools | **3 tools**: `list_instances`, `find_catalogue_entity`, `get_catalogue_entity` | Small, coherent, proves the full pipeline without flooding the model. |
 
@@ -123,18 +132,36 @@ deployed environment.
   a tool description, or presented to users as delivering per-user field-level
   filtering. It delivers exactly the authorization GMA enforces, which is currently
   group-level. The server still never tries to detect stripping.*
-- **Multi-instance aggregation**: catalogue responses are "aggregated by instance" and
-  wrapped in a `status` envelope:
+- **Multi-instance aggregation** — ⚠️ *corrected*. Catalogue responses are aggregated by
+  instance, but v5 signals partial success by **HTTP status code**, not by a `status`
+  envelope. Verified in `api_catalogue.yaml`:
 
   ```yaml
-  status:
-    code: SUCCESS | PARTIAL_SUCCESS | FAILURE | TOO_MANY_EVENTS | REQUEST_TIMEOUT | BAD_REQUEST
-    successfulInstances: [ ... ]
-    failedInstances:     [ ... ]
-  # plus Error { instance, message }
+  # HTTP 200 → EntityResponseSuccess
+  successfulConfigSources: [ urn:cb:BF, ... ]
+
+  # HTTP 206 → EntityResponsePartialSuccess  (declared on 28 v5 operations)
+  successfulConfigSources: [ urn:cb:BF ]
+  failedConfigSources:     [ urn:cb:PP ]
+  errors:
+    - configSource: urn:cb:PP
+      message: Was not possible to retrieve Instance PP
   ```
 
-  → *This is the machine-readable partial-failure contract the client parses.*
+  Declared statuses across v5: `200` (30 ops), `206` (28), `400` (28), `401` (30),
+  `404` (27), `500` (30).
+
+  The `status.code` envelope originally described here — with `SUCCESS`,
+  `PARTIAL_SUCCESS`, `TOO_MANY_EVENTS`, `REQUEST_TIMEOUT`, `BAD_REQUEST`, `FAILURE`, and
+  `successfulInstances`/`failedInstances` — is **real but belongs to a different
+  surface**: it is defined in `common.yaml` and used by the older `api.yaml` family.
+  `api_catalogue.yaml` contains **zero** references to `common.yaml` (verified by grep).
+  `TOO_MANY_EVENTS` and `REQUEST_TIMEOUT` therefore **do not appear on v5 at all**.
+
+  → *The machine-readable partial-failure contract the v5 client parses is the HTTP
+  status plus `successfulConfigSources`/`failedConfigSources`/`errors[]`. Partial failure
+  remains first-class; only the signal's shape differs from what this document first
+  assumed.*
 - **Tracing**: GMA depends on **Micrometer Tracing + OpenTelemetry** (`gma-application/pom.xml`:
   `micrometer-tracing`, `micrometer-tracing-bridge-otel`, `opentelemetry-exporter-otlp`,
   `micrometer-registry-otlp`) and sets a `request.id` MDC key (`MdcKey.java:10`).
@@ -234,12 +261,11 @@ gma-mcp-server/
 │  │  ├─ stdio.ts              # stdio transport (local dev)
 │  │  └─ endpoints.ts          # mounts one MCP server per domain (/mcp/<domain>)
 │  ├─ core/                    # SHARED — no domain imports allowed here
-│  │  ├─ gmaClient.ts          # envelope-aware GMA HTTP client (+ OTel, +traceparent)
-│  │  ├─ gmaStatus.ts          # status.code parsing → { data, completeness } type
+│  │  ├─ gmaClient.ts          # completeness-aware GMA HTTP client (+ OTel, +traceparent)
+│  │  ├─ completeness.ts       # HTTP outcome → { data, completeness }; hop aggregation
 │  │  ├─ auth.ts               # extract caller bearer, forward raw to GMA
 │  │  ├─ config.ts             # env-config: GMA_BASE_URL, GMA_DEFAULT_INSTANCES, OKTA…
-│  │  ├─ errors.ts             # GMA status/HTTP → MCP result|error mapping
-│  │  ├─ completeness.ts       # Completeness aggregation across hops
+│  │  ├─ errors.ts             # HTTP/transport → MCP result|error mapping
 │  │  └─ telemetry.ts          # OTel setup, structured logging (token/PII-safe)
 │  └─ domains/
 │     └─ catalogue/
@@ -251,7 +277,7 @@ gma-mcp-server/
 │        ├─ traversal.ts       # v5 tree-walk helpers (owned by this domain)
 │        └─ schemas.ts         # clean, LLM-facing input/output zod schemas
 ├─ test/
-│  ├─ fixtures/gma/            # one fixture per status.code, per operation
+│  ├─ fixtures/gma/            # one fixture per HTTP outcome, per operation
 │  ├─ unit/                    # resolution, disambiguation, caveat, status mapping
 │  ├─ integration/             # tools vs mocked GMA (msw / nock)
 │  └─ protocol/                # thin MCP Inspector / test-client smoke
@@ -264,52 +290,80 @@ gma-mcp-server/
 
 ## 4. Core contracts (write these first)
 
-### 4.1 The envelope-aware result type
+### 4.1 The completeness-aware result type
+
+⚠️ *Corrected 2026-09-03* — the original version of this type parsed a `status.code`
+field that the v5 catalogue surface does not expose (see §2). The **outcome vocabulary is
+now surface-independent**: derived from HTTP status on v5, and mapped from a `status.code`
+envelope on the older surfaces, into the same four values.
 
 Every `core` GMA call returns data **plus** a completeness descriptor. Tools never
 see a bare payload.
 
 ```ts
-// core/gmaStatus.ts
-export type GmaStatusCode =
-  | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILURE'
-  | 'TOO_MANY_EVENTS' | 'REQUEST_TIMEOUT' | 'BAD_REQUEST';
+// core/completeness.ts
+export type Outcome =
+  | 'COMPLETE'          // HTTP 200 — every instance answered
+  | 'PARTIAL'           // HTTP 206 — some failedConfigSources
+  | 'TOO_BROAD'         // derived from result cardinality (v5 does not report it)
+  | 'TIMEOUT_PARTIAL';  // transport abort, some hops already usable
+
+export interface InstanceError {
+  instance: string;   // from upstream `configSource`, renamed at the boundary
+  message: string;
+}
 
 export interface Completeness {
-  complete: boolean;                 // true only for SUCCESS
-  code: GmaStatusCode;
-  successfulInstances: string[];
-  failedInstances: string[];
-  errors: { instance?: string; message?: string }[];
+  complete: boolean;              // true only when every hop was COMPLETE
+  outcome: Outcome;
+  successfulInstances: string[];  // from `successfulConfigSources`
+  failedInstances: string[];      // from `failedConfigSources`
+  errors: InstanceError[];
+  caveat: string | null;          // null iff complete
 }
 
 export interface GmaResult<T> {
   data: T | null;
-  completeness: Completeness;        // ALWAYS present (invariant #3)
+  completeness: Completeness;     // ALWAYS present (invariant #3)
 }
 ```
 
-### 4.2 Status → MCP mapping (single source of truth)
+Terminal failures (`400`, `401`, `404`, `500`, timeout with nothing usable) are **not**
+`Outcome` values — they are `ToolError`s and never carry a `Completeness`, so a failure
+cannot be mistaken for data.
 
-| GMA outcome | MCP outcome | Notes |
+### 4.2 Upstream outcome → MCP mapping (single source of truth)
+
+⚠️ *Corrected 2026-09-03* — keyed on **HTTP status**, because v5 exposes no `status.code`
+field (§2).
+
+| v5 signal | MCP outcome | Notes |
 |---|---|---|
-| `SUCCESS` | result, `complete: true` | no caveat |
-| `PARTIAL_SUCCESS` | **result** + structured caveat | list `failedInstances` |
-| `TOO_MANY_EVENTS` | **result** framed "too broad — narrow by …" | feeds disambiguation |
-| `REQUEST_TIMEOUT` + partial data | **result** + caveat | treat like PARTIAL_SUCCESS |
-| `REQUEST_TIMEOUT` + no data | **tool error** | nothing usable |
-| `BAD_REQUEST` | **tool error** | agent supplied bad args → self-correct |
-| `FAILURE` | **tool error** | nothing usable |
+| HTTP `200` | result, `complete: true` | no caveat |
+| HTTP `206` | **result** + structured caveat | list `failedConfigSources` |
+| match count > threshold | **result** framed "too broad — narrow by …" | client-derived, not upstream-reported |
+| timeout + partial data | **result** + caveat | `TIMEOUT_PARTIAL` |
+| timeout + no data | **tool error** | nothing usable |
+| HTTP `400` | **tool error**, `kind: "argument"` | agent supplied bad args → self-correct |
+| HTTP `404` | **tool error**, `kind: "notFound"` | unknown id |
+| HTTP `500` | **tool error**, `kind: "upstream"` | nothing usable |
 | HTTP `401` | **tool error**, `kind: "auth"` | token expired/invalid → human re-auth |
+
+A future domain built on a surface that **does** carry the `status.code` envelope maps
+that envelope's codes onto the same four `Outcome` values — one internal representation,
+regardless of upstream shape.
 
 ### 4.3 Multi-hop completeness aggregation
 
 A task-oriented tool making N GMA calls merges every hop's `Completeness`:
 
 - `complete` = AND of all hops.
-- `code` = worst of all hop codes (precedence: `FAILURE`/`BAD_REQUEST` > `TIMEOUT` >
-  `TOO_MANY_EVENTS` > `PARTIAL_SUCCESS` > `SUCCESS`).
-- `failedInstances` / `errors` = union across hops.
+- `outcome` = worst of all hop outcomes (precedence: `TIMEOUT_PARTIAL` > `TOO_BROAD` >
+  `PARTIAL` > `COMPLETE`).
+- `failedInstances` / `errors` = union across hops, deduplicated.
+
+**Invariant** (unit-tested): `complete === true` ⟺ `outcome === 'COMPLETE'` ⟺
+`failedInstances.length === 0`.
 
 The tool result surfaces the merged caveat at top level, and **tool descriptions
 instruct the agent to relay partial-data caveats to the user.**
@@ -340,19 +394,27 @@ Never auto-pick from >1 plausible match.
    ✅ **Done 2026-09-03.** Okta auth is on; **GAHS is off in all envs** — see §2 and
    the "Does GMA need to change?" table for what that does and does not change.
 3. Capture **real sample responses** from `/v5/instances`, `/v5/searchByName`,
-   `/v5/{…}/{id}` for the fixture library (incl. a `PARTIAL_SUCCESS` example if
+   `/v5/{…}/{id}` for the fixture library (incl. an HTTP `206` partial example if
    obtainable; otherwise hand-craft from the schema — and mark it hand-crafted).
-   Note `search.maxEvents=200` (`attributes/common.rb:65`) is the threshold that
-   produces `TOO_MANY_EVENTS`, so size the narrow-hint fixture against that.
+   Note `search.maxEvents=200` (`attributes/common.rb:65`) drives `TOO_MANY_EVENTS`, but
+   ⚠️ that code is **not exposed on v5** (§2) and one-level traversal reaches event
+   *types*, not events — so the cap is unreachable in v1. Too-broad is instead derived
+   from result cardinality (`GMA_MAX_CANDIDATES`, default 25); size the narrow-hint
+   fixture against that.
 
 ### Phase 1 — Scaffold the repo
-4. `check_repo_name` for the slug (e.g. `gma-mcp-server`), then scaffold via the
-   **Prefab TS template** (`get_template_variables` → confirm values →
-   `create_service`). Inherit org pipeline, env-config, TLS, monitoring, Buildkite.
+⚠️ *Revised 2026-09-03 — local-only.* The Prefab TS template is **deferred**: nothing is
+deployed in v1, so its pipeline/TLS/monitoring value is unrealised. It remains required
+before any non-local deployment.
+
+4. Initialise a plain TypeScript project in this repository (`package.json`, `tsconfig`,
+   lint + format). Keep the env-config discipline of invariant 4 regardless of scaffold —
+   that is what makes later Prefab adoption a configuration exercise rather than a rewrite.
 5. Add MCP TypeScript SDK + `zod` + an HTTP client + OTel SDK + a mocking lib
-   (`msw`/`nock`) + a test runner (`vitest`).
-6. Wire `index.ts` to select transport from env (`MCP_TRANSPORT=http|stdio`) and,
-   for http, mount `/mcp/catalogue` + `/healthcheck`.
+   (`msw`) + a test runner (`vitest`).
+6. Wire `index.ts` to start the **stdio** transport, registering tools from a
+   transport-agnostic module so adding Streamable HTTP later touches no tool. Expose an
+   identity-free health signal.
 
 ### Phase 2 — Build `core` (shared, domain-agnostic)
 7. `config.ts`: read `GMA_BASE_URL`, `GMA_DEFAULT_INSTANCES`, OKTA issuer/metadata,
@@ -363,7 +425,9 @@ Never auto-pick from >1 plausible match.
    and W3C `traceparent`; parses the `status` envelope into `GmaResult<T>`.
 10. `gmaStatus.ts` / `completeness.ts` / `errors.ts`: implement §4.1–4.3.
 11. `telemetry.ts`: OTel tracer + structured logger (tool name, GMA ops/paths,
-    per-hop `status.code`, resolution outcome, latency). **Redact token/PII.**
+    per-hop upstream outcome, resolution outcome, latency). **Redact token/PII** —
+    prefer a field allowlist over a redaction denylist, so a new field cannot leak by
+    being forgotten.
 
 ### Phase 3 — Build the catalogue domain (v1 slice)
 12. `schemas.ts`: clean LLM-facing schemas (do NOT expose GMA DTOs). Each output
@@ -380,14 +444,15 @@ Never auto-pick from >1 plausible match.
     caveats.
 
 ### Phase 4 — Testing (see §6)
-17. Build the fixture library (one per `status.code` per operation).
+17. Build the fixture library (one per HTTP outcome per operation: 200/206/400/401/404/500,
+    plus a simulated transport timeout — which has no HTTP response at all).
 18. Unit-test resolution/disambiguation/caveat/status-mapping.
 19. Integration-test the 3 tools against mocked GMA.
 20. Thin MCP-protocol smoke test (schemas + one end-to-end call via a test client).
 
 ### Phase 5 — Ship
 21. Health check, OTel export to the shared collector, dashboards/alerts by tool +
-    `status.code`.
+    upstream outcome.
 22. Deploy one instance per GMA environment (`gma-mcp-qa` → QA GMA, `gma-mcp-prd` →
     prod GMA) via env-config.
 23. Manual live-GMA validation with a real human OKTA token.
@@ -397,14 +462,16 @@ Never auto-pick from >1 plausible match.
 ## 6. Testing strategy
 
 - **Backbone: unit + mocked-GMA integration.** Deterministic, fast, and — crucially —
-  able to simulate **every** `status.code`, which live GMA cannot.
-- **Fixture library** covering `SUCCESS`, `PARTIAL_SUCCESS`, `FAILURE`,
-  `TOO_MANY_EVENTS`, `REQUEST_TIMEOUT`, `BAD_REQUEST` for each v5 operation. This is
-  the asset that makes the partial-failure design testable.
+  able to simulate **every** upstream outcome, which live GMA cannot.
+- **Fixture library** covering HTTP `200`, `206`, `400`, `401`, `404`, `500` plus a
+  simulated transport timeout, for each v5 operation. This is the asset that makes the
+  partial-failure design testable. *(⚠️ Corrected: originally keyed on `status.code`
+  values that v5 does not expose — see §2.)*
 - **Must-cover cases**: single-match auto-resolve; multi-match candidates; zero-match;
-  `PARTIAL_SUCCESS` caveat surfaced at top level; `TOO_MANY_EVENTS` → narrow hint;
-  multi-hop caveat aggregation (one hop partial → whole result flagged);
-  `BAD_REQUEST`/`FAILURE` → tool error; `401` → auth-flagged error.
+  HTTP `206` caveat surfaced at top level; too-broad → narrow hint; multi-hop caveat
+  aggregation (one hop partial → whole result flagged); `400`/`500` → tool error;
+  `404` → not-found; `401` → auth-flagged error; timeout with partial data vs none;
+  two identities in one process → no bleed.
 - **Thin MCP-protocol smoke** (MCP Inspector / test client): tool schemas resolve and
   one real tool call round-trips.
 - **Live GMA = manual/pre-release**, not CI (token management + can't force failures).
@@ -441,21 +508,35 @@ Never auto-pick from >1 plausible match.
 
 ## 9. Summary
 
-Build a **standalone TypeScript MCP server** (new repo, Prefab-scaffolded) that speaks
-**Streamable HTTP** with **standard MCP OAuth**, forwards the **human user's OKTA token
-straight through** to GMA (preserving **whatever authorization GMA enforces**, with
-**no GMA code change**), and exposes **three task-oriented catalogue tools** built on
-GMA's **v5 catalogue API**. A **modular monolith** structure (shared `core` + domain
-modules, per-domain endpoints) keeps each agent's tool list small and makes future
-growth additive. The **envelope-aware client** and **mandatory structured completeness
-caveat** ensure agents never present multi-instance partial data as complete — the one
-correctness trap that matters most in a risk/trading context.
+Build a **standalone TypeScript MCP server** (new repo; Prefab scaffold deferred while
+local-only) that speaks **stdio in v1**, with Streamable HTTP and standard MCP OAuth to
+follow additively, and forwards the **human user's OKTA token straight through** to GMA
+(preserving **whatever authorization GMA enforces**, with **no GMA code change**). It
+exposes **three task-oriented catalogue tools** built on GMA's **v5 catalogue API**. A
+**modular monolith** structure (shared `core` + domain modules, per-domain endpoints)
+keeps each agent's tool list small and makes future growth additive. The
+**completeness-aware client** and **mandatory structured completeness caveat** ensure
+agents never present multi-instance partial data as complete — the one correctness trap
+that matters most in a risk/trading context.
 
-Two corrections from verifying the deployed config (§2), both worth carrying into the
-spec: GMA's OKTA issuer is a **per-environment custom authorization server** (not
-`flutteruki.okta.com`), so the accepted issuer comes from env-config and tokens are not
-portable across environments; and **GAHS fine-grained field-stripping is currently off
-in every deployed environment**, so today pass-through preserves *group-level* authz.
-Pass-through is still non-negotiable — it is what makes GAHS work unchanged the day it
-is enabled, at which point any other identity model would over-disclose silently.
-Until then, do not describe this server as delivering per-user field-level filtering.
+**Three corrections from verifying reality against this document**, all worth carrying
+into implementation:
+
+1. **Issuer** — GMA's OKTA issuer is a **per-environment custom authorization server**
+   (not `flutteruki.okta.com`), so the accepted issuer comes from env-config and tokens
+   are not portable across environments.
+2. **Authorization depth** — **GAHS fine-grained field-stripping is currently off in
+   every deployed environment**, so today pass-through preserves *group-level* authz.
+   Pass-through is still non-negotiable: it is what makes GAHS work unchanged the day it
+   is enabled, at which point any other identity model would over-disclose silently.
+   Until then, do not describe this server as delivering per-user field-level filtering.
+3. **Partial-failure contract** — v5 signals partial success by **HTTP 206 with
+   `successfulConfigSources`/`failedConfigSources`**, not by the `status.code` envelope
+   this document originally described (that envelope belongs to the older `api.yaml`
+   family). `TOO_MANY_EVENTS` and `REQUEST_TIMEOUT` do not exist on v5; too-broad is
+   derived from result cardinality instead. Every completeness *rule* survives — only the
+   signal's shape changed.
+
+**Scope of v1, as clarified**: stdio transport, local-only definition of done, one level
+of traversal on a single match, and per-invocation identity from the start (the one part
+of the local→remote path that would not otherwise be additive).

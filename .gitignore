@@ -1,2 +1,20 @@
 # macOS
 .DS_Store
+
+# JetBrains IDE
+.idea/
+
+# Node
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local configuration — never commit real hosts or tokens
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
