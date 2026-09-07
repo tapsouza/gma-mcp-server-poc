@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "../dist-agent"
+  },
+  "include": ["**/*.ts"],
+  // The base config excludes `agent` (so the server's build ignores the harness), and
+  // `extends` would inherit that here — excluding every file this config includes.
+  // Overridden rather than removed from the base: the server's build must not compile
+  // the harness (FR-025's spirit — the gates stay pointed at `src/`).
+  "exclude": ["../node_modules", "../dist", "../dist-agent"]
+}
