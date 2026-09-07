@@ -4,24 +4,34 @@ import { isToolError } from '../../../core/errors.js';
 import type { GmaClient } from '../../../core/gmaClient.js';
 import type { OperatorToken } from '../../../core/identity.js';
 import { resolveInstances } from '../../../core/instances.js';
+import type { ResolvedOperation } from '../../../core/surface.js';
 import type { Completeness } from '../../../core/types.js';
 import { mapSearchResults, type SearchByNameResponse } from '../mapSearchResults.js';
 import { resolveByCardinality, toToolPayload, withChildren } from '../resolve.js';
-import { fetchChildren } from '../traversal.js';
+import { fetchChildren, type TraversalHandles } from '../traversal.js';
 
 /**
  * `find_catalogue_entity` — User Story 2 (P2). The hero tool.
  *
  * Two hops maximum:
- *   1. `POST /v5/searchByName` — note `instancesList` goes in the REQUEST BODY here,
- *      unlike the GET operations which take it as a query parameter (research.md R3).
+ *   1. the by-name search. Its `instancesList` goes in the REQUEST BODY, unlike the GET
+ *      operations which take it as a query parameter — an upstream asymmetry now carried
+ *      by the operation table rather than by this tool (001 research.md R3).
  *   2. Only on exactly one match, one level of children (FR-025).
  *
- * Completeness is aggregated across BOTH hops, so a 206 on either marks the whole
- * result incomplete (FR-008, SC-011).
+ * **This tool spans two upstream generations on a default deployment**, and does so
+ * without knowing it: the search is served by v5 because that is the only generation
+ * offering a by-name search at all, while the child hop follows the v4 default. Both
+ * arrive as pre-resolved handles, so nothing here chooses or can observe a generation.
+ *
+ * Completeness is aggregated across BOTH hops regardless of which generation served
+ * each, so a 206 on either marks the whole result incomplete (FR-008, SC-011,
+ * 003-FR-009, FR-018). The generation boundary is not a boundary for the verdict.
  */
 
-export const SEARCH_PATH = '/v5/searchByName';
+/** The handles this tool needs: the search, plus everything traversal needs. */
+export type FindCatalogueEntityHandles = TraversalHandles &
+  Readonly<Record<'searchByName', ResolvedOperation>>;
 
 /**
  * The description the model sees, from contracts/tools.md section 2.
@@ -50,6 +60,7 @@ export interface FindCatalogueEntityArgs {
 export async function findCatalogueEntity(
   client: GmaClient,
   config: Config,
+  operations: FindCatalogueEntityHandles,
   token: OperatorToken,
   args: FindCatalogueEntityArgs
 ): Promise<Record<string, unknown>> {
@@ -57,10 +68,14 @@ export async function findCatalogueEntity(
   // any GMA call is made (FR-017, SC-008).
   const instances = resolveInstances(args.instances, config);
 
-  const searchResult = await client.post<SearchByNameResponse>(
-    SEARCH_PATH,
-    { name: args.name, instancesList: instances },
-    { token, tool: 'find_catalogue_entity', hop: 1 }
+  // `instances` reaches the request body because this handle declares
+  // `instancesIn: 'body'`; the client places it. So narrowing behaves identically here
+  // and on the query-parameter operations (003-FR-011).
+  const searchResult = await client.call<SearchByNameResponse>(
+    operations.searchByName,
+    {},
+    { name: args.name },
+    { token, instances, tool: 'find_catalogue_entity', hop: 1 }
   );
 
   const hops: Completeness[] = [searchResult.completeness];
@@ -82,7 +97,7 @@ export async function findCatalogueEntity(
   // data is a caveat, not an error. Only the caller has the context to make that
   // call, which is why the client throws and this layer decides.
   try {
-    const traversal = await fetchChildren(client, token, needsTraversal, instances);
+    const traversal = await fetchChildren(client, operations, token, needsTraversal, instances);
     hops.push(traversal.completeness);
 
     return toToolPayload(withChildren(outcome, traversal.children), aggregate(hops));

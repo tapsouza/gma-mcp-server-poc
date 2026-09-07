@@ -25,9 +25,32 @@ import type { Outcome } from './types.js';
 export const LOG_FIELD_ALLOWLIST = Object.freeze([
   /** Which curated tool ran, e.g. `find_catalogue_entity`. */
   'tool',
-  /** The GMA operation label, e.g. `GET /v5/instances`. A label, never a full URL. */
+  /**
+   * The LOGICAL GMA operation id, e.g. `listInstances`. A label, never a full URL.
+   *
+   * Deliberately generation-free (research.md R7): a dashboard or alert keyed on
+   * `listInstances` keeps working across a generation change instead of splitting into
+   * two series. `generation` and `path` carry that detail separately.
+   */
   'operation',
-  /** The GMA path template, e.g. `/v5/subclasses/{id}/eventTypes`. Never interpolated ids. */
+  /**
+   * Which upstream catalogue generation served the call: `v4` or `v5` (003-FR-015).
+   *
+   * Safe to emit, and that is a claim about the VALUE not just the intent: it is a
+   * two-value enum carrying no credential, no identifier of any kind, and no personal
+   * datum. It cannot be widened by accident either — the type is closed, so a third
+   * value would not compile.
+   *
+   * This allowlist is the only egress path for BOTH log lines and span attributes, so
+   * this one addition covers diagnostics everywhere (001-FR-020, SC-009).
+   */
+  'generation',
+  /**
+   * The resolved GMA path template, e.g. the subclass event-type listing's template.
+   *
+   * Always the TEMPLATE, never an interpolated one: an id in a log line is upstream
+   * vocabulary at best and a leak vector at worst.
+   */
   'path',
   /** HTTP status of one hop. */
   'status',

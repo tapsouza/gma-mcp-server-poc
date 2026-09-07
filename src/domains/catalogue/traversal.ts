@@ -1,6 +1,7 @@
 import type { GmaClient } from '../../core/gmaClient.js';
 import type { OperatorToken } from '../../core/identity.js';
 import { complete } from '../../core/completeness.js';
+import type { ResolvedOperation } from '../../core/surface.js';
 import type { Completeness } from '../../core/types.js';
 import type { Ancestor, CatalogueEntity } from './schemas.js';
 
@@ -10,13 +11,14 @@ import type { Ancestor, CatalogueEntity } from './schemas.js';
  * ONE level, never deeper. That is the shallowest depth that still exercises
  * multi-hop completeness aggregation — the correctness behaviour this slice exists to
  * prove — while keeping too-broad and partial-failure exposure bounded. Going one
- * step further, to `/v5/eventTypes/{id}/events`, would reach GMA's 200-event cap and
- * make the common path fragile (research.md R2).
+ * step further, to an event type's events, would reach GMA's 200-event cap and make the
+ * common path fragile (001 research.md R2).
  */
 
-/** GMA path templates. Never interpolated into a log field (Principle V). */
-const SUBCLASS_EVENT_TYPES = '/v5/subclasses/{id}/eventTypes';
-const SUPERCLASS = '/v5/superclasses/{id}';
+/** The handles this module needs, resolved once at startup. */
+export type TraversalHandles = Readonly<
+  Record<'subclassEventTypes' | 'getSuperclass', ResolvedOperation>
+>;
 
 /**
  * The subset of a child-listing response this module reads.
@@ -67,14 +69,18 @@ function toChildren(
 /**
  * Fetch the matched entity's immediate children.
  *
- * - matched `subclass` -> `GET /v5/subclasses/{id}/eventTypes`
- * - matched `superclass` -> `GET /v5/superclasses/{id}` (children arrive inline)
+ * - matched `subclass` -> the `subclassEventTypes` operation
+ * - matched `superclass` -> the `getSuperclass` operation (children arrive inline)
  * - matched `eventType` -> NO second hop; its children would be events (out of scope)
+ *
+ * Both handles follow the deployment default, which is what lets one tool call search on
+ * v5 — where the by-name search is the only place it exists — and list children on v4.
  *
  * @param token THIS invocation's token, threaded explicitly (FR-023a)
  */
 export async function fetchChildren(
   client: GmaClient,
+  operations: TraversalHandles,
   token: OperatorToken,
   entity: CatalogueEntity,
   instances: readonly string[]
@@ -91,8 +97,10 @@ export async function fetchChildren(
   }
 
   if (entity.type === 'subclass') {
-    const result = await client.get<ChildrenResponse>(
-      `/v5/subclasses/${encodeURIComponent(entity.id)}/eventTypes`,
+    const result = await client.call<ChildrenResponse>(
+      operations.subclassEventTypes,
+      { id: entity.id },
+      undefined,
       { token, instances, tool: 'find_catalogue_entity', hop: 2 }
     );
 
@@ -102,8 +110,10 @@ export async function fetchChildren(
     };
   }
 
-  const result = await client.get<ChildrenResponse>(
-    `/v5/superclasses/${encodeURIComponent(entity.id)}`,
+  const result = await client.call<ChildrenResponse>(
+    operations.getSuperclass,
+    { id: entity.id },
+    undefined,
     { token, instances, tool: 'find_catalogue_entity', hop: 2 }
   );
 
@@ -116,9 +126,3 @@ export async function fetchChildren(
     completeness: result.completeness
   };
 }
-
-/** Exported for the traversal test, so the path templates are asserted, not guessed. */
-export const TRAVERSAL_PATHS = Object.freeze({
-  subclassEventTypes: SUBCLASS_EVENT_TYPES,
-  superclass: SUPERCLASS
-});

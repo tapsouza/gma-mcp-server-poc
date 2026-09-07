@@ -7,13 +7,14 @@ import {
   malformedResponse
 } from './errors.js';
 import { authorizationHeader, type OperatorToken } from './identity.js';
+import { interpolatePath, type ResolvedOperation } from './surface.js';
 import { createLogger, levelForOutcome, traceparent, type Logger } from './telemetry.js';
 import type { GmaResult } from './types.js';
 
 /**
  * The GMA HTTP client (FR-001, FR-003, constitution Principles I, II and V).
  *
- * Three things this file guarantees, each of them load-bearing:
+ * Four things this file guarantees, each of them load-bearing:
  *
  *  1. The operator's token is an explicit PARAMETER on every call and is forwarded
  *     unaltered. Nothing here reads it from state, so two concurrent callers cannot
@@ -23,6 +24,9 @@ import type { GmaResult } from './types.js';
  *     completeness at all, so a failure cannot be dressed as data (FR-010).
  *  3. Operational values (base URL, timeout) come from `Config`, never from a caller
  *     argument (FR-018).
+ *  4. A caller supplies a `ResolvedOperation` handle and path parameters — never a path
+ *     string. The generation was decided once at startup, so no call site can name one,
+ *     and there is no per-call routing decision to get wrong (003-FR-003).
  */
 
 /** Per-call options. The token is required and explicit — never ambient. */
@@ -48,43 +52,70 @@ export interface GmaClientDeps {
   readonly logger?: Logger;
 }
 
+/** Values interpolated into a handle's path template, percent-encoded by the client. */
+export type PathParams = Readonly<Record<string, string>>;
+
 export interface GmaClient {
-  get<T>(path: string, options: GmaCallOptions): Promise<GmaResult<T>>;
-  post<T>(path: string, body: unknown, options: GmaCallOptions): Promise<GmaResult<T>>;
+  /**
+   * Call the operation this handle resolves to.
+   *
+   * The handle carries the method, so there is no separate `get`/`post` pair: the
+   * operation's shape is the table's business, not the caller's.
+   */
+  call<T>(
+    operation: ResolvedOperation,
+    params: PathParams,
+    body: unknown,
+    options: GmaCallOptions
+  ): Promise<GmaResult<T>>;
 }
 
 /**
- * The instance query parameter for GET operations.
+ * The instance parameter name, used in both the query string and the request body.
  *
- * Note the asymmetry research.md R3 records: GET operations take `instancesList` as a
- * QUERY PARAMETER, while `POST /v5/searchByName` takes it in the REQUEST BODY. Both
- * are handled, and the difference is confined to this file.
+ * Where it goes is decided by the handle's `instancesIn`, not by this file guessing from
+ * the method: GET operations take `instancesList` as a QUERY PARAMETER while
+ * `POST /v5/searchByName` takes it in the REQUEST BODY (research.md R1). That asymmetry
+ * is upstream's, and it now lives in the operation table where it is visible and
+ * testable, rather than as an implicit method-based rule here.
  */
 const INSTANCES_PARAM = 'instancesList';
-
-/** A stable operation label for logs and errors — never a URL, which could carry a token. */
-function operationLabel(method: string, path: string): string {
-  return `${method} ${path}`;
-}
 
 export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): GmaClient {
   const doFetch: FetchLike = fetchImpl ?? ((input, init) => fetch(input, init));
   const log = logger ?? createLogger(config.logLevel);
 
   async function call<T>(
-    method: 'GET' | 'POST',
-    path: string,
+    resolved: ResolvedOperation,
+    params: PathParams,
     body: unknown,
     options: GmaCallOptions
   ): Promise<GmaResult<T>> {
-    const operation = operationLabel(method, path);
+    const { method, generation, pathTemplate } = resolved;
+
+    // The LOGICAL operation id, e.g. `getEventType` — not `GET /v5/eventTypes/{id}`.
+    // A generation-bearing label would split every metric series in two the moment the
+    // generation changed, defeating the point of making it configurable (research.md R7).
+    // It also keeps upstream mechanics out of agent-visible error text (003-FR-012).
+    const operation = resolved.operation;
+
+    // Interpolated and percent-encoded in `surface.ts`, beside the templates. GMA ids are
+    // URNs full of colons, and this encoding was previously repeated in two tool modules.
+    const path = interpolatePath(pathTemplate, params);
     const url = new URL(`${config.gmaBaseUrl}${path}`);
 
-    if (method === 'GET' && options.instances !== undefined) {
+    if (resolved.instancesIn === 'query' && options.instances !== undefined) {
       for (const instance of options.instances) {
         url.searchParams.append(INSTANCES_PARAM, instance);
       }
     }
+
+    // The request body for a POST that scopes by instance in the body rather than the
+    // query string. Built here so a tool never has to know which of the two it is.
+    const requestBody =
+      resolved.instancesIn === 'body' && options.instances !== undefined
+        ? { ...(body as Record<string, unknown>), [INSTANCES_PARAM]: options.instances }
+        : body;
 
     const headers: Record<string, string> = {
       // Forwarded UNALTERED. This server mints, exchanges, and caches nothing.
@@ -112,7 +143,7 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
         method,
         headers,
         signal,
-        ...(method === 'POST' ? { body: JSON.stringify(body ?? {}) } : {})
+        ...(method === 'POST' ? { body: JSON.stringify(requestBody ?? {}) } : {})
       });
     } catch (error) {
       const latencyMs = Date.now() - startedAt;
@@ -130,7 +161,8 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
       log.error({
         tool: options.tool,
         operation,
-        path,
+        generation,
+        path: pathTemplate,
         hop: options.hop,
         latencyMs,
         errorKind: 'upstream',
@@ -156,7 +188,8 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
       log.error({
         tool: options.tool,
         operation,
-        path,
+        generation,
+        path: pathTemplate,
         hop: options.hop,
         status,
         latencyMs,
@@ -174,7 +207,8 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
       log.error({
         tool: options.tool,
         operation,
-        path,
+        generation,
+        path: pathTemplate,
         hop: options.hop,
         status,
         latencyMs,
@@ -190,7 +224,8 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
     log[levelForOutcome(completeness.outcome)]({
       tool: options.tool,
       operation,
-      path,
+      generation,
+      path: pathTemplate,
       hop: options.hop,
       status,
       outcome: completeness.outcome,
@@ -203,8 +238,5 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
     return { data: parsed as T, completeness };
   }
 
-  return {
-    get: (path, options) => call('GET', path, undefined, options),
-    post: (path, body, options) => call('POST', path, body, options)
-  };
+  return { call };
 }

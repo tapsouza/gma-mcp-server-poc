@@ -1,13 +1,20 @@
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { createGmaClient } from '../../src/core/gmaClient.js';
+import { requireOperations, resolveOperations } from '../../src/core/surface.js';
 import { ToolError } from '../../src/core/types.js';
 import {
   LIST_INSTANCES_DESCRIPTION,
-  LIST_INSTANCES_OPERATION,
   listInstances
 } from '../../src/domains/catalogue/tools/listInstances.js';
-import { GMA_BASE_URL, TEST_TOKEN, testConfig, useGmaServer } from '../helpers/gma.js';
+import {
+  BOTH_GENERATIONS,
+  GMA_BASE_URL,
+  TEST_TOKEN,
+  handle,
+  testConfig,
+  useGmaServer
+} from '../helpers/gma.js';
 
 import instances200 from '../fixtures/gma/instances/200-success.json' with { type: 'json' };
 import instances400 from '../fixtures/gma/instances/400-bad-request.json' with { type: 'json' };
@@ -18,15 +25,25 @@ import instances500 from '../fixtures/gma/instances/500-server-error.json' with 
 /** User Story 1 (P1) acceptance scenarios 1 to 4. */
 
 const server = useGmaServer();
-const INSTANCES = `${GMA_BASE_URL}/v5/instances`;
 const client = () => createGmaClient({ config: testConfig() });
 
-describe('list_instances (Story 1, P1)', () => {
+/**
+ * Every outcome, asserted once per generation (003-FR-016, SC-003).
+ *
+ * Each run mounts its handler at that generation's own path and passes that generation's
+ * handle, so the routing is genuinely exercised twice. The response bodies are shared
+ * because both generations declare them identically (003 research.md R2), and the run
+ * asserts the request arrived at the expected path — which is what makes the sharing
+ * honest rather than merely convenient (R3).
+ */
+describe.each(BOTH_GENERATIONS)('list_instances on %s (Story 1, P1)', (generation) => {
+  const operation = handle('listInstances', generation);
+  const INSTANCES = `${GMA_BASE_URL}${operation.pathTemplate}`;
   describe('case: scenario 1 — full success returns codes marked complete (FR-011)', () => {
     it('returns the brand codes with a complete verdict', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances200)));
 
-      const result = await listInstances(client(), TEST_TOKEN);
+      const result = await listInstances(client(), operation, TEST_TOKEN);
 
       expect(result.instances).toEqual([
         { code: 'PP', id: 'urn:i:PP:PP', name: 'PaddyPower' },
@@ -40,7 +57,7 @@ describe('list_instances (Story 1, P1)', () => {
     it('carries completeness even on full success, never omitting it (FR-005)', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances200)));
 
-      const result = await listInstances(client(), TEST_TOKEN);
+      const result = await listInstances(client(), operation, TEST_TOKEN);
 
       expect(result).toHaveProperty('completeness');
       expect(Object.keys(result).sort()).toEqual(['completeness', 'instances']);
@@ -49,7 +66,7 @@ describe('list_instances (Story 1, P1)', () => {
     it('gives the agent both a short code and an id, so it need not guess either (SC-005)', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances200)));
 
-      const result = await listInstances(client(), TEST_TOKEN);
+      const result = await listInstances(client(), operation, TEST_TOKEN);
 
       for (const instance of result.instances) {
         expect(instance.code).toMatch(/^[A-Z0-9]+$/);
@@ -61,7 +78,7 @@ describe('list_instances (Story 1, P1)', () => {
     it('exposes no upstream vocabulary in the tool result (Principle IV)', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances200)));
 
-      const result = await listInstances(client(), TEST_TOKEN);
+      const result = await listInstances(client(), operation, TEST_TOKEN);
       const serialised = JSON.stringify(result);
 
       expect(serialised).not.toContain('configSource');
@@ -74,7 +91,7 @@ describe('list_instances (Story 1, P1)', () => {
     it('returns the instances that answered and names the one that did not', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances206, { status: 206 })));
 
-      const result = await listInstances(client(), TEST_TOKEN);
+      const result = await listInstances(client(), operation, TEST_TOKEN);
 
       expect(result.instances).toEqual([{ code: 'PP', id: 'urn:i:PP:PP', name: 'PaddyPower' }]);
       expect(result.completeness.complete).toBe(false);
@@ -85,7 +102,7 @@ describe('list_instances (Story 1, P1)', () => {
     it('never presents the shortened list as the whole list (SC-001)', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances206, { status: 206 })));
 
-      const result = await listInstances(client(), TEST_TOKEN);
+      const result = await listInstances(client(), operation, TEST_TOKEN);
 
       // Data IS returned — partial failure is normal operation, not an error — but it
       // is inseparable from the verdict that says it is incomplete.
@@ -97,7 +114,7 @@ describe('list_instances (Story 1, P1)', () => {
     it('carries the per-instance error detail the upstream reported (FR-007)', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances206, { status: 206 })));
 
-      const result = await listInstances(client(), TEST_TOKEN);
+      const result = await listInstances(client(), operation, TEST_TOKEN);
 
       expect(result.completeness.errors).toEqual([
         {
@@ -113,7 +130,7 @@ describe('list_instances (Story 1, P1)', () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances401, { status: 401 })));
 
       try {
-        await listInstances(client(), TEST_TOKEN);
+        await listInstances(client(), operation, TEST_TOKEN);
         expect.unreachable('a 401 must not resolve as a result');
       } catch (error) {
         const toolError = error as ToolError;
@@ -127,7 +144,9 @@ describe('list_instances (Story 1, P1)', () => {
     it('does not surface an expired identity as an empty instance list', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances401, { status: 401 })));
 
-      await expect(listInstances(client(), TEST_TOKEN)).rejects.toBeInstanceOf(ToolError);
+      await expect(listInstances(client(), operation, TEST_TOKEN)).rejects.toBeInstanceOf(
+        ToolError
+      );
     });
   });
 
@@ -136,7 +155,7 @@ describe('list_instances (Story 1, P1)', () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances500, { status: 500 })));
 
       try {
-        await listInstances(client(), TEST_TOKEN);
+        await listInstances(client(), operation, TEST_TOKEN);
         expect.unreachable('a 500 must not resolve as an empty result');
       } catch (error) {
         const toolError = error as ToolError;
@@ -155,7 +174,7 @@ describe('list_instances (Story 1, P1)', () => {
         )
       );
 
-      const result = await listInstances(client(), TEST_TOKEN);
+      const result = await listInstances(client(), operation, TEST_TOKEN);
 
       expect(result.instances).toEqual([]);
       expect(result.completeness.complete).toBe(true);
@@ -173,7 +192,7 @@ describe('list_instances (Story 1, P1)', () => {
 
       const config = testConfig({ requestTimeoutMs: 25 });
       try {
-        await listInstances(createGmaClient({ config }), TEST_TOKEN);
+        await listInstances(createGmaClient({ config }), operation, TEST_TOKEN);
         expect.unreachable('a timed-out call must not resolve');
       } catch (error) {
         const toolError = error as ToolError;
@@ -190,7 +209,7 @@ describe('list_instances (Story 1, P1)', () => {
       // already gathered data, and this tool makes exactly one hop. The
       // timeout-with-partial-data case is exercised where it is reachable, in
       // findCatalogueEntity.test.ts (hop 2 times out after hop 1 resolved).
-      expect(LIST_INSTANCES_OPERATION).toBe('/v5/instances');
+      expect(operation.operation).toBe('listInstances');
     });
   });
 
@@ -199,7 +218,7 @@ describe('list_instances (Story 1, P1)', () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances400, { status: 400 })));
 
       try {
-        await listInstances(client(), TEST_TOKEN);
+        await listInstances(client(), operation, TEST_TOKEN);
         expect.unreachable('a 400 must not resolve');
       } catch (error) {
         const toolError = error as ToolError;
@@ -214,7 +233,7 @@ describe('list_instances (Story 1, P1)', () => {
       // list_instances has no input at all, so there is no query to narrow and no
       // cardinality to derive too-broad from. Recorded explicitly so the SC-003
       // matrix shows a deliberate N/A rather than an oversight.
-      expect(listInstances.length).toBe(2); // (client, token) — no query parameter
+      expect(listInstances.length).toBe(3); // (client, operation, token) — no query parameter
     });
   });
 
@@ -229,7 +248,7 @@ describe('list_instances (Story 1, P1)', () => {
         )
       );
 
-      const result = await listInstances(client(), TEST_TOKEN);
+      const result = await listInstances(client(), operation, TEST_TOKEN);
 
       expect(result.instances).toEqual([{ code: 'PP', id: 'urn:i:PP:PP', name: 'PaddyPower' }]);
     });
@@ -244,7 +263,7 @@ describe('list_instances (Story 1, P1)', () => {
         )
       );
 
-      const result = await listInstances(client(), TEST_TOKEN);
+      const result = await listInstances(client(), operation, TEST_TOKEN);
 
       expect(result.instances).toEqual([{ code: 'PP', id: 'urn:i:PP:PP', name: 'PP' }]);
     });
@@ -254,7 +273,7 @@ describe('list_instances (Story 1, P1)', () => {
         http.get(INSTANCES, () => HttpResponse.json({ successfulConfigSources: ['urn:i:PP:PP'] }))
       );
 
-      const result = await listInstances(client(), TEST_TOKEN);
+      const result = await listInstances(client(), operation, TEST_TOKEN);
 
       expect(result.instances).toEqual([]);
       expect(result.completeness.complete).toBe(true);
@@ -288,15 +307,127 @@ describe('list_instances (Story 1, P1)', () => {
         })
       );
 
-      await listInstances(client(), TEST_TOKEN);
+      await listInstances(client(), operation, TEST_TOKEN);
 
       expect(authorization).toBe(`Bearer ${TEST_TOKEN}`);
     });
 
     it('takes the token as a parameter, so no ambient identity is possible', () => {
-      // Structural: `listInstances(client, token)`. There is no overload that omits
-      // the token and reads it from state.
-      expect(listInstances.length).toBe(2);
+      // Structural: `listInstances(client, operation, token)`. There is no overload that
+      // omits the token and reads it from state.
+      expect(listInstances.length).toBe(3);
+    });
+  });
+});
+
+/**
+ * Generation routing, asserted directly rather than as an implication of the runs above.
+ *
+ * The parameterised suite proves each generation WORKS. These prove which one a real
+ * deployment actually reaches — a different claim, and the one FR-001 and SC-001 make.
+ */
+describe('list_instances generation routing', () => {
+  describe('case: default config routes every non-search operation to v4 (003-FR-001, FR-017, SC-001)', () => {
+    it('reaches a /v4/ path when nothing is configured', async () => {
+      // Resolution from a DEFAULT config, not a hand-built handle: this is the assertion
+      // that would fail if the default were still v5, or if `loadConfig`'s default and
+      // the resolver's disagreed.
+      const config = testConfig();
+      const operations = requireOperations(
+        resolveOperations({
+          capability: 'catalogue',
+          operations: ['listInstances'],
+          defaultGeneration: config.defaultGeneration
+        }),
+        ['listInstances'] as const
+      );
+
+      let pathname: string | null = null;
+      server.use(
+        http.get(`${GMA_BASE_URL}/v4/instances`, ({ request }) => {
+          pathname = new URL(request.url).pathname;
+          return HttpResponse.json(instances200);
+        })
+      );
+
+      const result = await listInstances(
+        createGmaClient({ config }),
+        operations.listInstances,
+        TEST_TOKEN
+      );
+
+      expect(pathname).toBe('/v4/instances');
+      expect(operations.listInstances.generation).toBe('v4');
+      // And the answer is the same one the tool always gave.
+      expect(result.instances).toEqual([
+        { code: 'PP', id: 'urn:i:PP:PP', name: 'PaddyPower' },
+        { code: 'BF', id: 'urn:i:BF:BF', name: 'Betfair' }
+      ]);
+    });
+
+    it('never touches a v5 path on a default deployment', async () => {
+      // msw's `onUnhandledRequest: 'error'` does the work: with ONLY the v4 handler
+      // mounted, any v5 request fails the test rather than passing silently.
+      const config = testConfig();
+      const operations = requireOperations(
+        resolveOperations({
+          capability: 'catalogue',
+          operations: ['listInstances'],
+          defaultGeneration: config.defaultGeneration
+        }),
+        ['listInstances'] as const
+      );
+
+      server.use(http.get(`${GMA_BASE_URL}/v4/instances`, () => HttpResponse.json(instances200)));
+
+      await expect(
+        listInstances(createGmaClient({ config }), operations.listInstances, TEST_TOKEN)
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe('case: GMA_CATALOGUE_GENERATION=v5 routes every operation to v5 (003-FR-013, SC-005, Story 3 scenario 2)', () => {
+    it('reaches a /v5/ path, with an identical result', async () => {
+      const v4Config = testConfig();
+      const v5Config = testConfig({ defaultGeneration: 'v5' });
+
+      const resolve = (config: ReturnType<typeof testConfig>) =>
+        requireOperations(
+          resolveOperations({
+            capability: 'catalogue',
+            operations: ['listInstances'],
+            defaultGeneration: config.defaultGeneration
+          }),
+          ['listInstances'] as const
+        );
+
+      const paths: string[] = [];
+      server.use(
+        http.get(`${GMA_BASE_URL}/v4/instances`, ({ request }) => {
+          paths.push(new URL(request.url).pathname);
+          return HttpResponse.json(instances200);
+        }),
+        http.get(`${GMA_BASE_URL}/v5/instances`, ({ request }) => {
+          paths.push(new URL(request.url).pathname);
+          return HttpResponse.json(instances200);
+        })
+      );
+
+      const onV4 = await listInstances(
+        createGmaClient({ config: v4Config }),
+        resolve(v4Config).listInstances,
+        TEST_TOKEN
+      );
+      const onV5 = await listInstances(
+        createGmaClient({ config: v5Config }),
+        resolve(v5Config).listInstances,
+        TEST_TOKEN
+      );
+
+      expect(paths).toEqual(['/v4/instances', '/v5/instances']);
+      // The generation is an operational choice with NO agent-visible consequence
+      // (003-FR-008, SC-002).
+      expect(onV5).toEqual(onV4);
     });
   });
 });

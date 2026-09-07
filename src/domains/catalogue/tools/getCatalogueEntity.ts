@@ -2,6 +2,7 @@ import type { Config } from '../../../core/config.js';
 import type { GmaClient } from '../../../core/gmaClient.js';
 import type { OperatorToken } from '../../../core/identity.js';
 import { resolveInstances } from '../../../core/instances.js';
+import type { CatalogueOperation, ResolvedOperation } from '../../../core/surface.js';
 import type { Completeness } from '../../../core/types.js';
 import { malformedResponse } from '../../../core/errors.js';
 import type { Ancestor, CatalogueEntity, EntityType } from '../schemas.js';
@@ -16,12 +17,23 @@ import type { Ancestor, CatalogueEntity, EntityType } from '../schemas.js';
  * during input validation, before any GMA call is made (SC-008).
  */
 
-/** Which v5 path serves each supported type. */
-const PATH_BY_TYPE: Readonly<Record<EntityType, string>> = Object.freeze({
-  superclass: '/v5/superclasses',
-  subclass: '/v5/subclasses',
-  eventType: '/v5/eventTypes'
-});
+/**
+ * Which logical operation serves each supported type.
+ *
+ * A map of OPERATION IDS, not paths: `core/surface.ts` owns the path for each, per
+ * generation. This is the whole `PATH_BY_TYPE` map that used to live here, minus the
+ * only part of it that could be wrong twice (003-FR-003).
+ */
+const OPERATION_BY_TYPE = Object.freeze({
+  superclass: 'getSuperclass',
+  subclass: 'getSubclass',
+  eventType: 'getEventType'
+}) satisfies Readonly<Record<EntityType, CatalogueOperation>>;
+
+/** The handles this tool needs: one entity-get operation per supported type. */
+export type GetCatalogueEntityHandles = Readonly<
+  Record<(typeof OPERATION_BY_TYPE)[EntityType], ResolvedOperation>
+>;
 
 /**
  * The description the model sees, from contracts/tools.md section 3.
@@ -129,14 +141,16 @@ function collectAncestors(node: UpstreamNode, type: EntityType): Ancestor[] {
 export async function getCatalogueEntity(
   client: GmaClient,
   config: Config,
+  operations: GetCatalogueEntityHandles,
   token: OperatorToken,
   args: GetCatalogueEntityArgs
 ): Promise<GetCatalogueEntityResult> {
   const instances = resolveInstances(args.instances, config);
-  const path = `${PATH_BY_TYPE[args.type]}/${encodeURIComponent(args.id)}`;
+  const operation = operations[OPERATION_BY_TYPE[args.type]];
 
-  // A 404 becomes a `notFound` ToolError in the client, never an empty success (FR-010).
-  const result = await client.get<EntityResponse>(path, {
+  // The id is interpolated and percent-encoded by the client, beside the path templates.
+  // A 404 becomes a `notFound` ToolError there, never an empty success (FR-010).
+  const result = await client.call<EntityResponse>(operation, { id: args.id }, undefined, {
     token,
     instances,
     tool: 'get_catalogue_entity',
@@ -148,7 +162,10 @@ export async function getCatalogueEntity(
   if (node === null || node === undefined || typeof node.id !== 'string') {
     // A 200 whose body does not carry the entity. Reporting this as an empty success
     // would be the "confidently wrong" failure Principle II exists to prevent.
-    throw malformedResponse(`GET ${PATH_BY_TYPE[args.type]}/{id}`);
+    //
+    // The label is the LOGICAL operation id, so agent-visible error text reads
+    // `getSubclass` rather than a versioned upstream path (003-FR-012, research.md R7).
+    throw malformedResponse(operation.operation);
   }
 
   return {

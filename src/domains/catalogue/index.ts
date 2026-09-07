@@ -4,6 +4,7 @@ import type { Config } from '../../core/config.js';
 import { isToolError } from '../../core/errors.js';
 import type { GmaClient } from '../../core/gmaClient.js';
 import { extractOperatorToken, type RequestIdentitySource } from '../../core/identity.js';
+import type { CatalogueOperation, OperationPins, ResolvedOperation } from '../../core/surface.js';
 import type { Logger } from '../../core/telemetry.js';
 import {
   findCatalogueEntityInputSchema,
@@ -30,10 +31,59 @@ import { LIST_INSTANCES_DESCRIPTION, listInstances } from './tools/listInstances
  * boundary is a mechanism rather than a convention.
  */
 
+/**
+ * The upstream operations this domain uses (contracts §3).
+ *
+ * The domain declares WHICH operations it needs; `core/surface.ts` owns which generations
+ * offer each and what their paths are. That split is what lets a domain own its
+ * declarations without `core/` ever importing a domain (Principle III) — the two meet in
+ * `server/register.ts`, the one layer permitted to see both.
+ */
+export const CATALOGUE_OPERATIONS = [
+  'listInstances',
+  'searchByName',
+  'getSuperclass',
+  'getSubclass',
+  'getEventType',
+  'subclassEventTypes'
+] as const satisfies readonly CatalogueOperation[];
+
+/**
+ * Per-operation generation requirements for this domain.
+ *
+ * This pin encodes an **upstream fact, not a preference**: v4 has no by-name search of
+ * any kind — zero occurrences in its spec, verified 2026-09-07 (research.md R1) — so the
+ * search hop must be served by v5 whatever the deployment default is.
+ *
+ * It is per OPERATION rather than per capability precisely so `find_catalogue_entity` can
+ * search on v5 while listing children on the v4 default, within one tool call and one
+ * aggregated completeness verdict. A capability-wide pin would drag the child listing onto
+ * v5 too and quietly defeat this feature for the tool that matters most (research.md R5).
+ *
+ * Deleting this line makes the process refuse to start on a v4 default, naming the
+ * capability and the operation. That is 003-FR-006 having teeth rather than being a
+ * comment — and if upstream ever adds by-name search to v4, deleting this line is the
+ * whole migration.
+ */
+export const CATALOGUE_PINS: OperationPins = Object.freeze({
+  searchByName: 'v5'
+});
+
+/** The handles a startup resolution hands this domain, one per declared operation. */
+export type CatalogueHandles = Readonly<
+  Record<(typeof CATALOGUE_OPERATIONS)[number], ResolvedOperation>
+>;
+
 export interface DomainDeps {
   readonly config: Config;
   readonly client: GmaClient;
   readonly logger: Logger;
+  /**
+   * Pre-resolved operation handles. A tool receives these and therefore cannot name a
+   * path, name a generation, or choose either — the capability is simply absent from its
+   * vocabulary, which is stronger than a rule saying it must not (003-FR-003, FR-012).
+   */
+  readonly operations: CatalogueHandles;
 }
 
 /**
@@ -81,7 +131,7 @@ export function toSuccessResult(payload: Record<string, unknown>): CallToolResul
 
 /** Register every catalogue tool on the given server. */
 export function registerCatalogueDomain(server: McpServer, deps: DomainDeps): void {
-  const { client, config, logger } = deps;
+  const { client, config, logger, operations } = deps;
 
   server.registerTool(
     'list_instances',
@@ -97,7 +147,7 @@ export function registerCatalogueDomain(server: McpServer, deps: DomainDeps): vo
         // Identity is extracted from THIS request and threaded as a value. No
         // module-level token, no singleton, no async-local storage (FR-023a).
         const token = extractOperatorToken(extra as RequestIdentitySource);
-        const result = await listInstances(client, token);
+        const result = await listInstances(client, operations.listInstances, token);
 
         logger.info({
           tool: 'list_instances',
@@ -136,7 +186,7 @@ export function registerCatalogueDomain(server: McpServer, deps: DomainDeps): vo
       const startedAt = Date.now();
       try {
         const token = extractOperatorToken(extra as RequestIdentitySource);
-        const payload = await findCatalogueEntity(client, config, token, {
+        const payload = await findCatalogueEntity(client, config, operations, token, {
           name: args.name,
           instances: args.instances
         });
@@ -177,7 +227,7 @@ export function registerCatalogueDomain(server: McpServer, deps: DomainDeps): vo
       const startedAt = Date.now();
       try {
         const token = extractOperatorToken(extra as RequestIdentitySource);
-        const result = await getCatalogueEntity(client, config, token, {
+        const result = await getCatalogueEntity(client, config, operations, token, {
           type: args.type,
           id: args.id,
           instances: args.instances

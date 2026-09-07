@@ -3,6 +3,12 @@ import type { SetupServerApi } from 'msw/node';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import type { Config } from '../../src/core/config.js';
 import type { OperatorToken } from '../../src/core/identity.js';
+import {
+  resolveOperations,
+  type CatalogueOperation,
+  type Generation,
+  type ResolvedOperation
+} from '../../src/core/surface.js';
 
 /** The base URL every test's GMA lives at. Not a real host. */
 export const GMA_BASE_URL = 'https://gma.test.invalid';
@@ -15,7 +21,13 @@ export const TEST_TOKEN =
 export const OTHER_TOKEN =
   'eyJhbGciOiJSUzI1NiIsImtpZCI6Im90aGVyIn0.eyJzdWIiOiJqb2huLnJvZUBleGFtcGxlLmNvbSJ9.other-signature' as OperatorToken;
 
-/** A test config. Overrides let a test shorten the timeout or the candidate cap. */
+/**
+ * A test config. Overrides let a test shorten the timeout or change the generation.
+ *
+ * `defaultGeneration: 'v4'` mirrors what `loadConfig` produces from an unset
+ * `GMA_CATALOGUE_GENERATION`, so a suite that overrides nothing exercises the DEFAULT
+ * deployment rather than a test-only arrangement.
+ */
 export function testConfig(overrides: Partial<Config> = {}): Config {
   return Object.freeze({
     gmaBaseUrl: GMA_BASE_URL,
@@ -23,10 +35,50 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     oktaIssuer: 'https://example.okta.invalid/oauth2/aus0',
     requestTimeoutMs: 30_000,
     maxCandidates: 25,
+    defaultGeneration: 'v4' as Generation,
     logLevel: 'error',
     ...overrides
   });
 }
+
+/**
+ * The `ResolvedOperation` handle a tool would have been given at startup.
+ *
+ * The seam every parameterised suite uses: `describe.each(['v4','v5'])` builds the
+ * handle for that generation, mounts a request handler at its path, and asserts the
+ * request arrived there — which is what makes sharing one response body across both
+ * generations honest rather than merely convenient (research.md R3).
+ *
+ * It goes through the real `resolveOperations`, not a hand-built object, so a suite
+ * cannot accidentally assert against a handle the resolver would have refused to
+ * produce — asking for `searchByName` on v4 fails here exactly as it would at startup.
+ */
+export function handle(
+  operation: CatalogueOperation,
+  generation: Generation = 'v4'
+): ResolvedOperation {
+  const resolved = resolveOperations({
+    capability: 'test',
+    operations: [operation],
+    pins: { [operation]: generation },
+    defaultGeneration: generation
+  });
+
+  return resolved[operation]!;
+}
+
+/** Handles for several operations at once, all on the same generation. */
+export function handles<K extends CatalogueOperation>(
+  operations: readonly K[],
+  generation: Generation = 'v4'
+): Record<K, ResolvedOperation> {
+  return Object.fromEntries(
+    operations.map((operation) => [operation, handle(operation, generation)])
+  ) as Record<K, ResolvedOperation>;
+}
+
+/** Both generations, for `describe.each` over a parameterised suite. */
+export const BOTH_GENERATIONS: readonly Generation[] = Object.freeze(['v4', 'v5']);
 
 /**
  * Start an msw server for the calling suite and tear it down afterwards.

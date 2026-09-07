@@ -1,6 +1,7 @@
 import type { GmaClient } from '../../../core/gmaClient.js';
 import type { OperatorToken } from '../../../core/identity.js';
 import { urnToCode } from '../../../core/instances.js';
+import type { ResolvedOperation } from '../../../core/surface.js';
 import type { Completeness } from '../../../core/types.js';
 import type { BrandInstance } from '../schemas.js';
 
@@ -12,8 +13,6 @@ import type { BrandInstance } from '../schemas.js';
  * to guess brand codes, which is what makes the other two tools usable rather than
  * trial-and-error (FR-017, SC-005).
  */
-
-export const LIST_INSTANCES_OPERATION = '/v5/instances';
 
 /**
  * The description the model sees, from contracts/tools.md section 1.
@@ -27,7 +26,7 @@ export const LIST_INSTANCES_DESCRIPTION =
   'Call this first if you need to narrow a query by brand, rather than guessing instance codes. ' +
   'If the result reports failed instances, relay that caveat to the user — the list may be incomplete.';
 
-/** The subset of `GET /v5/instances` this tool reads. */
+/** The subset of the instances listing this tool reads — identical on both generations. */
 interface InstancesResponse {
   readonly instances?: readonly { id?: string | null; name?: string | null }[] | null;
   readonly successfulConfigSources?: readonly string[] | null;
@@ -42,14 +41,17 @@ export interface ListInstancesResult {
  * Fetch the brand instances.
  *
  * @param client the shared core GMA client
+ * @param operation the handle resolved at startup. This tool cannot name a path or a
+ *   generation, so there is no per-call routing decision to get wrong (003-FR-003)
  * @param token THIS invocation's operator token — an explicit parameter, never read
  *   from state (FR-023a)
  */
 export async function listInstances(
   client: GmaClient,
+  operation: ResolvedOperation,
   token: OperatorToken
 ): Promise<ListInstancesResult> {
-  const result = await client.get<InstancesResponse>(LIST_INSTANCES_OPERATION, {
+  const result = await client.call<InstancesResponse>(operation, {}, undefined, {
     token,
     tool: 'list_instances',
     hop: 1

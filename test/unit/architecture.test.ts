@@ -94,6 +94,59 @@ describe('architecture invariants', () => {
     });
   });
 
+  describe('case: no upstream path literal exists outside core/surface.ts (003-FR-003)', () => {
+    // The structural half of "exactly one place decides the generation". The behavioural
+    // tests prove routing is correct TODAY; this proves it stays decidable in one place,
+    // which is the property a later edit erodes silently. Same spirit as the
+    // hardcoded-host assertion above.
+    //
+    // Matches a quoted or templated path segment beginning `/v4/` or `/v5/`, which is
+    // the shape every upstream catalogue path takes.
+    const PATH_LITERAL = /['"`]\/v[45]\//;
+
+    it('confines every versioned path literal to the operation table', () => {
+      const offenders = files
+        .filter(({ path }) => path !== 'core/surface.ts')
+        .filter(({ source }) => PATH_LITERAL.test(source))
+        .map((f) => f.path);
+
+      expect(offenders).toEqual([]);
+    });
+
+    it('finds those literals present in surface.ts, so the assertion is not vacuous', () => {
+      // Without this, deleting the table would make the assertion above pass trivially.
+      const table = files.find(({ path }) => path === 'core/surface.ts');
+
+      expect(table).toBeDefined();
+      expect(PATH_LITERAL.test(table!.source)).toBe(true);
+    });
+
+    it('names a generation in no domain file at all', () => {
+      // A tool cannot express a generation, so it should not mention one either — except
+      // where a comment records WHY an operation is pinned, which is a fact about
+      // upstream rather than a routing decision. Assert on code, not comments.
+      const domainCode = files
+        .filter(({ path }) => path.startsWith('domains/'))
+        .map(({ path, source }) => ({
+          path,
+          // Strip block and line comments before matching.
+          code: source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+        }));
+
+      for (const { path, code } of domainCode) {
+        // The one permitted mention is the searchByName pin's value, which encodes that
+        // v4 has no by-name search — an upstream fact the domain must be able to state.
+        const mentions = [...code.matchAll(/['"]v[45]['"]/g)].map((m) => m[0]);
+        const allowed = path === 'domains/catalogue/index.ts' ? ["'v5'"] : [];
+
+        expect(
+          mentions.filter((m) => !allowed.includes(m)),
+          path
+        ).toEqual([]);
+      }
+    });
+  });
+
   describe('case: module boundaries hold (Principle III)', () => {
     it('has no core file importing from domains', () => {
       const offenders = files

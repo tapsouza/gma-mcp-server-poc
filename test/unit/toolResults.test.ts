@@ -20,7 +20,7 @@ describe('tool result mapping', () => {
       [404, 'notFound'],
       [500, 'upstream']
     ] as const)('marks HTTP %i as an error tagged %s', (status, kind) => {
-      const result = toErrorResult(fromHttpStatus(status, 'GET /v5/instances'));
+      const result = toErrorResult(fromHttpStatus(status, 'listInstances'));
 
       expect(result.isError).toBe(true);
       expect((result.content as { text: string }[])[0]!.text).toContain(`[${kind}]`);

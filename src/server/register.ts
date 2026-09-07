@@ -1,8 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Config } from '../core/config.js';
 import { createGmaClient, type GmaClient } from '../core/gmaClient.js';
+import { requireOperations, resolveOperations } from '../core/surface.js';
 import { createLogger, type Logger } from '../core/telemetry.js';
-import { registerCatalogueDomain } from '../domains/catalogue/index.js';
+import {
+  CATALOGUE_OPERATIONS,
+  CATALOGUE_PINS,
+  registerCatalogueDomain
+} from '../domains/catalogue/index.js';
 import { health } from './health.js';
 
 /**
@@ -69,9 +74,34 @@ export function buildServer({ config, client, logger }: BuildServerDeps): McpSer
     })
   );
 
+  // Which upstream generation serves each operation, decided ONCE, here, for the whole
+  // process lifetime (003-FR-003). Resolution IS the availability check: an operation a
+  // domain needs on a generation that does not offer it throws a `config` ToolError and
+  // the process refuses to start, rather than failing at an agent's first call
+  // (003-FR-006). Failing here is free.
+  //
+  // This is also the boundary that keeps Principle III intact. The domain owns its
+  // declarations and `core/surface.ts` owns the availability table; they meet here,
+  // because this file is the one layer permitted to import both. `core/` therefore never
+  // imports a domain — enforced by an ESLint rule and by architecture.test.ts.
+  const catalogueOperations = requireOperations(
+    resolveOperations({
+      capability: 'catalogue',
+      operations: CATALOGUE_OPERATIONS,
+      pins: CATALOGUE_PINS,
+      defaultGeneration: config.defaultGeneration
+    }),
+    CATALOGUE_OPERATIONS
+  );
+
   // Each domain registers its own tools. Adding a domain is additive — a new folder
   // and one more call here, with no rewrite of an existing domain (Principle III).
-  registerCatalogueDomain(server, { config, client: gmaClient, logger: log });
+  registerCatalogueDomain(server, {
+    config,
+    client: gmaClient,
+    logger: log,
+    operations: catalogueOperations
+  });
 
   return server;
 }

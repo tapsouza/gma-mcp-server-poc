@@ -130,6 +130,72 @@ describe('loadConfig', () => {
     });
   });
 
+  describe('case: GMA_CATALOGUE_GENERATION defaults to v4 and rejects anything else (003-FR-013, FR-014)', () => {
+    it('defaults to v4 when unset — the default IS the safe value, so it is not required', () => {
+      expect(loadConfig(validEnv()).defaultGeneration).toBe('v4');
+    });
+
+    it.each([
+      ['empty', ''],
+      ['whitespace-only', '   '],
+      ['a tab', '\t']
+    ])('treats a %s value as unset rather than as an unrecognised generation', (_label, value) => {
+      // A variable set to a stray space is an empty setting, not a typo'd one. Failing
+      // startup on it would be punishing a whitespace difference in a deploy template.
+      expect(loadConfig({ ...validEnv(), GMA_CATALOGUE_GENERATION: value }).defaultGeneration).toBe(
+        'v4'
+      );
+    });
+
+    it.each([
+      ['v4', 'v4'],
+      ['v5', 'v5']
+    ])('accepts %s', (_label, value) => {
+      expect(loadConfig({ ...validEnv(), GMA_CATALOGUE_GENERATION: value }).defaultGeneration).toBe(
+        value
+      );
+    });
+
+    it('trims surrounding whitespace around a valid value', () => {
+      expect(
+        loadConfig({ ...validEnv(), GMA_CATALOGUE_GENERATION: '  v5  ' }).defaultGeneration
+      ).toBe('v5');
+    });
+
+    it.each([
+      ['a generation that does not exist', 'v6'],
+      ['the right value in the wrong case', 'V4'],
+      ['a bare number', '4'],
+      ['an alias', 'latest'],
+      ['a path', '/v4'],
+      ['two values', 'v4,v5']
+    ])('rejects %s, naming the variable and its accepted values', (_label, value) => {
+      // Never a silent fallback: an operator who typed `V4` meant something, and
+      // starting on v4 anyway hides the mistake until it matters.
+      try {
+        loadConfig({ ...validEnv(), GMA_CATALOGUE_GENERATION: value });
+        expect.unreachable(`${value} must not be accepted`);
+      } catch (error) {
+        const toolError = error as ToolError;
+        expect(toolError).toBeInstanceOf(ToolError);
+        expect(toolError.kind).toBe('config');
+        expect(toolError.retryable).toBe(false);
+        expect(toolError.message).toContain('GMA_CATALOGUE_GENERATION');
+        expect(toolError.message).toContain('v4');
+        expect(toolError.message).toContain('v5');
+      }
+    });
+
+    it('is absent from the required-variable list, so an existing deployment still starts', () => {
+      // The regression this guards: adding the variable to REQUIRED_VARS would make
+      // every deployment that predates this feature refuse to start, for no safety gain.
+      const env = validEnv();
+      delete env.GMA_CATALOGUE_GENERATION;
+
+      expect(() => loadConfig(env)).not.toThrow();
+    });
+  });
+
   describe('instance list parsing', () => {
     it('splits and trims the default instance list', () => {
       const config = loadConfig({ ...validEnv(), GMA_DEFAULT_INSTANCES: ' PP , BF ,SBG ' });
@@ -144,10 +210,15 @@ describe('loadConfig', () => {
   });
 
   describe('case: no operational value is readable from a tool argument (FR-018)', () => {
-    it('exposes exactly the six configured fields and nothing agent-supplied', () => {
+    it('exposes exactly the seven configured fields and nothing agent-supplied', () => {
       const config = loadConfig(validEnv());
 
+      // Exhaustive on purpose: adding a field here should be a deliberate act with a
+      // reviewer attached, because every field is operational and none may ever become
+      // reachable from a tool argument. `defaultGeneration` was added by 003 and is
+      // operational for exactly that reason (003-FR-013).
       expect(Object.keys(config).sort()).toEqual([
+        'defaultGeneration',
         'defaultInstances',
         'gmaBaseUrl',
         'logLevel',

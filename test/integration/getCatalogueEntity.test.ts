@@ -8,8 +8,10 @@ import {
   getCatalogueEntity
 } from '../../src/domains/catalogue/tools/getCatalogueEntity.js';
 import {
+  BOTH_GENERATIONS,
   GMA_BASE_URL,
   TEST_TOKEN,
+  handles,
   requestRecorder,
   testConfig,
   useGmaServer
@@ -26,19 +28,30 @@ import superclassEntity from '../fixtures/gma/entities/200-superclass.json' with
 /** User Story 3 (P3) acceptance scenarios 1 to 3. */
 
 const server = useGmaServer();
-const SUBCLASS = `${GMA_BASE_URL}/v5/subclasses/:id`;
-const SUPERCLASS = `${GMA_BASE_URL}/v5/superclasses/:id`;
-const EVENT_TYPE = `${GMA_BASE_URL}/v5/eventTypes/:id`;
 
-function run(
-  args: Parameters<typeof getCatalogueEntity>[3],
-  overrides: Parameters<typeof testConfig>[0] = {}
-) {
-  const config = testConfig(overrides);
-  return getCatalogueEntity(createGmaClient({ config }), config, TEST_TOKEN, args);
-}
+const ENTITY_OPERATIONS = ['getSuperclass', 'getSubclass', 'getEventType'] as const;
 
-describe('get_catalogue_entity (Story 3, P3)', () => {
+/**
+ * Every outcome, for all three entity types, once per generation (003-FR-016, SC-003).
+ *
+ * Handlers are mounted at the generation's own paths and the tool is handed that
+ * generation's handles, so a run that reached the wrong generation fails on msw's
+ * `onUnhandledRequest: 'error'` rather than passing quietly.
+ */
+describe.each(BOTH_GENERATIONS)('get_catalogue_entity on %s (Story 3, P3)', (generation) => {
+  const operations = handles(ENTITY_OPERATIONS, generation);
+
+  const SUBCLASS = `${GMA_BASE_URL}/${generation}/subclasses/:id`;
+  const SUPERCLASS = `${GMA_BASE_URL}/${generation}/superclasses/:id`;
+  const EVENT_TYPE = `${GMA_BASE_URL}/${generation}/eventTypes/:id`;
+
+  function run(
+    args: Parameters<typeof getCatalogueEntity>[4],
+    overrides: Parameters<typeof testConfig>[0] = {}
+  ) {
+    const config = testConfig({ defaultGeneration: generation, ...overrides });
+    return getCatalogueEntity(createGmaClient({ config }), config, operations, TEST_TOKEN, args);
+  }
   describe('case: scenario 1 — a valid type and id returns details plus completeness (FR-016)', () => {
     it('returns a subclass with its parent in the ancestor chain', async () => {
       server.use(http.get(SUBCLASS, () => HttpResponse.json(subclassEntity)));
@@ -76,7 +89,7 @@ describe('get_catalogue_entity (Story 3, P3)', () => {
       ]);
     });
 
-    it('dispatches each type to its own v5 path', async () => {
+    it('dispatches each type to its own path on this generation', async () => {
       const paths: string[] = [];
       server.use(
         http.get(SUBCLASS, ({ request }) => {
@@ -97,7 +110,11 @@ describe('get_catalogue_entity (Story 3, P3)', () => {
       await run({ type: 'superclass', id: 'b' });
       await run({ type: 'eventType', id: 'c' });
 
-      expect(paths).toEqual(['/v5/subclasses/a', '/v5/superclasses/b', '/v5/eventTypes/c']);
+      expect(paths).toEqual([
+        `/${generation}/subclasses/a`,
+        `/${generation}/superclasses/b`,
+        `/${generation}/eventTypes/c`
+      ]);
     });
 
     it('carries completeness even on full success (FR-005)', async () => {
@@ -123,7 +140,7 @@ describe('get_catalogue_entity (Story 3, P3)', () => {
     it('url-encodes an id containing URN colons', async () => {
       let path: string | null = null;
       server.use(
-        http.get(`${GMA_BASE_URL}/v5/subclasses/*`, ({ request }) => {
+        http.get(`${GMA_BASE_URL}/${generation}/subclasses/*`, ({ request }) => {
           path = new URL(request.url).pathname;
           return HttpResponse.json(subclassEntity);
         })
@@ -495,7 +512,8 @@ describe('get_catalogue_entity (Story 3, P3)', () => {
 
     it('uses no GMA DTO vocabulary (Principle IV)', () => {
       expect(GET_CATALOGUE_ENTITY_DESCRIPTION).not.toContain('configSource');
-      expect(GET_CATALOGUE_ENTITY_DESCRIPTION).not.toContain('v5');
+      // No generation, either one, and no versioned path (003-FR-012).
+      expect(GET_CATALOGUE_ENTITY_DESCRIPTION).not.toMatch(/\bv[45]\b/);
     });
   });
 
@@ -512,6 +530,73 @@ describe('get_catalogue_entity (Story 3, P3)', () => {
       await run({ type: 'subclass', id: 'urn:sub:pl' });
 
       expect(seen[0]!.authorization).toBe(`Bearer ${TEST_TOKEN}`);
+    });
+  });
+});
+
+/**
+ * The strongest single guard against routing leaking into a result (003-FR-008, SC-002).
+ *
+ * The parameterised suite above asserts each generation produces the RIGHT answer. This
+ * asserts the two produce the SAME answer, byte for byte, from the same body — which is a
+ * different and stronger claim. If a generation ever reaches the payload, this fails.
+ */
+describe('cross-generation output equality', () => {
+  const server2 = server;
+
+  function runOn(
+    generation: 'v4' | 'v5',
+    args: Parameters<typeof getCatalogueEntity>[4]
+  ): ReturnType<typeof getCatalogueEntity> {
+    const config = testConfig({ defaultGeneration: generation });
+    const ops = handles(['getSuperclass', 'getSubclass', 'getEventType'] as const, generation);
+    return getCatalogueEntity(createGmaClient({ config }), config, ops, TEST_TOKEN, args);
+  }
+
+  describe('case: agent-facing payload is deeply equal on v4 and v5 (003-FR-008, SC-002)', () => {
+    it.each([
+      ['a subclass', 'subclass', 'subclasses', subclassEntity, 200],
+      ['a superclass', 'superclass', 'superclasses', superclassEntity, 200],
+      ['an event type', 'eventType', 'eventTypes', eventTypeEntity, 200],
+      ['a partial subclass', 'subclass', 'subclasses', entity206, 206]
+    ] as const)(
+      'returns an identical payload for %s on both generations',
+      async (_label, type, segment, body, status) => {
+        for (const generation of BOTH_GENERATIONS) {
+          server2.use(
+            http.get(`${GMA_BASE_URL}/${generation}/${segment}/:id`, () =>
+              HttpResponse.json(body, { status })
+            )
+          );
+        }
+
+        const onV4 = await runOn('v4', { type, id: 'urn:x:1' });
+        const onV5 = await runOn('v5', { type, id: 'urn:x:1' });
+
+        // Includes the completeness verdict: the 206 case proves a partial-success
+        // verdict is derived identically on both generations, which is what lets
+        // `completeness.ts` stay untouched by this feature (Principle II).
+        expect(onV5).toEqual(onV4);
+        expect(JSON.stringify(onV5)).toBe(JSON.stringify(onV4));
+      }
+    );
+
+    it('mentions no generation anywhere in the serialised payload (003-FR-012)', async () => {
+      for (const generation of BOTH_GENERATIONS) {
+        server2.use(
+          http.get(`${GMA_BASE_URL}/${generation}/eventTypes/:id`, () =>
+            HttpResponse.json(eventTypeEntity)
+          )
+        );
+      }
+
+      for (const generation of BOTH_GENERATIONS) {
+        const serialised = JSON.stringify(await runOn(generation, { type: 'eventType', id: 'x' }));
+
+        expect(serialised).not.toContain('v4');
+        expect(serialised).not.toContain('v5');
+        expect(serialised).not.toContain('generation');
+      }
     });
   });
 });

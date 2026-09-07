@@ -2,7 +2,14 @@ import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { createGmaClient } from '../../src/core/gmaClient.js';
 import { extractOperatorToken, STDIO_TOKEN_ENV_VAR } from '../../src/core/identity.js';
-import { GMA_BASE_URL, OTHER_TOKEN, TEST_TOKEN, testConfig, useGmaServer } from '../helpers/gma.js';
+import {
+  GMA_BASE_URL,
+  OTHER_TOKEN,
+  TEST_TOKEN,
+  handle,
+  testConfig,
+  useGmaServer
+} from '../helpers/gma.js';
 
 import instances200 from '../fixtures/gma/instances/200-success.json' with { type: 'json' };
 
@@ -16,7 +23,15 @@ import instances200 from '../fixtures/gma/instances/200-success.json' with { typ
  */
 
 const server = useGmaServer();
-const INSTANCES = `${GMA_BASE_URL}/v5/instances`;
+
+/**
+ * Identity behaviour must be VISIBLY untouched by the generation feature (003 Principle I
+ * re-check), so every assertion below is unchanged: only the way a call names its
+ * operation moved, from a path string to a resolved handle. The default generation is
+ * used, because that is what a real deployment runs.
+ */
+const listInstances = handle('listInstances');
+const INSTANCES = `${GMA_BASE_URL}${listInstances.pathTemplate}`;
 
 /** Record which Authorization header each inbound request carried. */
 function authRecorder() {
@@ -37,8 +52,8 @@ describe('identity isolation within one process (FR-023a, SC-010)', () => {
     const authorizations = authRecorder();
     const client = createGmaClient({ config: testConfig() });
 
-    await client.get('/v5/instances', { token: TEST_TOKEN });
-    await client.get('/v5/instances', { token: OTHER_TOKEN });
+    await client.call(listInstances, {}, undefined, { token: TEST_TOKEN });
+    await client.call(listInstances, {}, undefined, { token: OTHER_TOKEN });
 
     expect(authorizations).toEqual([`Bearer ${TEST_TOKEN}`, `Bearer ${OTHER_TOKEN}`]);
   });
@@ -51,10 +66,10 @@ describe('identity isolation within one process (FR-023a, SC-010)', () => {
     const client = createGmaClient({ config: testConfig() });
 
     await Promise.all([
-      client.get('/v5/instances', { token: TEST_TOKEN }),
-      client.get('/v5/instances', { token: OTHER_TOKEN }),
-      client.get('/v5/instances', { token: TEST_TOKEN }),
-      client.get('/v5/instances', { token: OTHER_TOKEN })
+      client.call(listInstances, {}, undefined, { token: TEST_TOKEN }),
+      client.call(listInstances, {}, undefined, { token: OTHER_TOKEN }),
+      client.call(listInstances, {}, undefined, { token: TEST_TOKEN }),
+      client.call(listInstances, {}, undefined, { token: OTHER_TOKEN })
     ]);
 
     expect(authorizations).toHaveLength(4);
@@ -67,7 +82,7 @@ describe('identity isolation within one process (FR-023a, SC-010)', () => {
     const client = createGmaClient({ config: testConfig() });
 
     const tokens = Array.from({ length: 20 }, (_, i) => (i % 2 === 0 ? TEST_TOKEN : OTHER_TOKEN));
-    await Promise.all(tokens.map((token) => client.get('/v5/instances', { token })));
+    await Promise.all(tokens.map((token) => client.call(listInstances, {}, undefined, { token })));
 
     expect(authorizations.filter((a) => a === `Bearer ${TEST_TOKEN}`)).toHaveLength(10);
     expect(authorizations.filter((a) => a === `Bearer ${OTHER_TOKEN}`)).toHaveLength(10);
@@ -80,9 +95,9 @@ describe('identity isolation within one process (FR-023a, SC-010)', () => {
     // parameter, so the client itself holds no identity to leak.
     const client = createGmaClient({ config: testConfig() });
 
-    await client.get('/v5/instances', { token: TEST_TOKEN });
+    await client.call(listInstances, {}, undefined, { token: TEST_TOKEN });
     authorizations.length = 0;
-    await client.get('/v5/instances', { token: OTHER_TOKEN });
+    await client.call(listInstances, {}, undefined, { token: OTHER_TOKEN });
 
     expect(authorizations).toEqual([`Bearer ${OTHER_TOKEN}`]);
     expect(authorizations[0]).not.toContain(TEST_TOKEN);
@@ -99,8 +114,8 @@ describe('identity isolation within one process (FR-023a, SC-010)', () => {
     const secondExtra = { authInfo: { token: OTHER_TOKEN } };
 
     await Promise.all([
-      client.get('/v5/instances', { token: extractOperatorToken(firstExtra, {}) }),
-      client.get('/v5/instances', { token: extractOperatorToken(secondExtra, {}) })
+      client.call(listInstances, {}, undefined, { token: extractOperatorToken(firstExtra, {}) }),
+      client.call(listInstances, {}, undefined, { token: extractOperatorToken(secondExtra, {}) })
     ]);
 
     expect(authorizations.sort()).toEqual([`Bearer ${TEST_TOKEN}`, `Bearer ${OTHER_TOKEN}`].sort());
@@ -114,8 +129,10 @@ describe('identity isolation within one process (FR-023a, SC-010)', () => {
     const client = createGmaClient({ config: testConfig() });
     const env = { [STDIO_TOKEN_ENV_VAR]: TEST_TOKEN };
 
-    await client.get('/v5/instances', { token: extractOperatorToken(undefined, env) });
-    await client.get('/v5/instances', {
+    await client.call(listInstances, {}, undefined, {
+      token: extractOperatorToken(undefined, env)
+    });
+    await client.call(listInstances, {}, undefined, {
       token: extractOperatorToken({ authInfo: { token: OTHER_TOKEN } }, env)
     });
 
@@ -126,7 +143,7 @@ describe('identity isolation within one process (FR-023a, SC-010)', () => {
     const authorizations = authRecorder();
     const client = createGmaClient({ config: testConfig() });
 
-    await client.get('/v5/instances', { token: TEST_TOKEN });
+    await client.call(listInstances, {}, undefined, { token: TEST_TOKEN });
 
     expect(authorizations[0]).not.toBeNull();
     expect(authorizations[0]).toMatch(/^Bearer \S+$/);

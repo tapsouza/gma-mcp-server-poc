@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Generation } from './surface.js';
 import { ToolError } from './types.js';
 
 /**
@@ -27,6 +28,15 @@ export interface Config {
   readonly requestTimeoutMs: number;
   /** Above this match count, a search reports `tooBroad` instead of candidates. */
   readonly maxCandidates: number;
+  /**
+   * Which GMA catalogue generation every operation consults unless a capability has
+   * declared a per-operation requirement for the other one (003-FR-013).
+   *
+   * Read ONCE at startup by the generation resolver, and by nothing else. It is
+   * operational and never an agent argument: no tool schema mentions a generation, so
+   * the model has no way to select one and no reason to (003-FR-012).
+   */
+  readonly defaultGeneration: Generation;
   readonly logLevel: LogLevel;
 }
 
@@ -75,6 +85,28 @@ const schema = z.object({
   OKTA_ISSUER: absoluteUrl('OKTA_ISSUER'),
   GMA_TIMEOUT_MS: positiveIntFromString('GMA_TIMEOUT_MS', 30_000),
   GMA_MAX_CANDIDATES: positiveIntFromString('GMA_MAX_CANDIDATES', 25),
+  /**
+   * Deliberately OPTIONAL rather than in `REQUIRED_VARS`: unset must mean `v4`
+   * (003-FR-013), and the default is the SAFE value — which is precisely the case where
+   * fail-fast should not apply. Adding it to the required set would break every existing
+   * deployment for no safety gain.
+   *
+   * An *invalid* value still refuses startup (003-FR-014). Absent and wrong are
+   * different, and only one of them is an operator error.
+   *
+   * The `.trim()` before the enum is what makes a whitespace-only value read as unset
+   * rather than as an unrecognised generation — an env var set to a stray space is an
+   * empty setting, not a typo'd one.
+   */
+  GMA_CATALOGUE_GENERATION: z
+    .string()
+    .optional()
+    .transform((value) => (value === undefined || value.trim() === '' ? 'v4' : value.trim()))
+    .pipe(
+      z.enum(['v4', 'v5'], {
+        message: 'GMA_CATALOGUE_GENERATION must be one of: v4, v5'
+      })
+    ),
   LOG_LEVEL: z
     .enum(['debug', 'info', 'warn', 'error'])
     .optional()
@@ -120,6 +152,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     oktaIssuer: raw.OKTA_ISSUER,
     requestTimeoutMs: raw.GMA_TIMEOUT_MS,
     maxCandidates: raw.GMA_MAX_CANDIDATES,
+    defaultGeneration: raw.GMA_CATALOGUE_GENERATION,
     logLevel: raw.LOG_LEVEL
   });
 }

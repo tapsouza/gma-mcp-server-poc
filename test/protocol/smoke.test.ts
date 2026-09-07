@@ -19,7 +19,13 @@ import instances206 from '../fixtures/gma/instances/206-partial.json' with { typ
  */
 
 const gma = useGmaServer();
-const INSTANCES = `${GMA_BASE_URL}/v5/instances`;
+/**
+ * These handlers are mounted on the generations a DEFAULT deployment resolves to: v4 for
+ * every entity and child operation, v5 for the by-name search, which exists nowhere else
+ * (003-FR-001, FR-004). This suite drives `buildServer`, so it exercises the real startup
+ * resolution — a handler on the wrong generation fails here rather than passing quietly.
+ */
+const INSTANCES = `${GMA_BASE_URL}/v4/instances`;
 
 /** Connect a real client to a real server over an in-memory transport pair. */
 async function connect() {
@@ -142,6 +148,77 @@ describe('MCP protocol smoke', () => {
   });
 
   describe('one call round-trips', () => {
+    it('case: no tool schema, description, or output mentions a generation (003-FR-012)', async () => {
+      const { client, close } = await connect();
+
+      const { tools } = await client.listTools();
+      const serialised = JSON.stringify(tools);
+
+      // The whole serialised tool list — names, descriptions, input and output schemas.
+      // A generation is upstream mechanics: the model has no use for it and must not be
+      // able to condition on it.
+      expect(serialised).not.toContain('v4');
+      expect(serialised).not.toContain('v5');
+      expect(serialised).not.toContain('generation');
+      expect(serialised).not.toContain('/v4/');
+      expect(serialised).not.toContain('/v5/');
+      // Nor any upstream path or method, which the same reasoning excludes.
+      expect(serialised).not.toContain('searchByName');
+      expect(serialised).not.toContain('eventTypes/');
+
+      await close();
+    });
+
+    it('case: generation is never an agent-supplied argument (003-FR-013, Story 3 scenario 4)', async () => {
+      const { client, close } = await connect();
+
+      const { tools } = await client.listTools();
+
+      for (const tool of tools) {
+        const inputProperties = Object.keys(
+          (tool.inputSchema?.properties as Record<string, unknown>) ?? {}
+        );
+        // No field by any plausible name through which a model could pick a generation.
+        for (const forbidden of ['generation', 'version', 'apiVersion', 'path', 'surface']) {
+          expect(inputProperties, tool.name).not.toContain(forbidden);
+        }
+      }
+
+      await close();
+    });
+
+    it('ignores an extra generation argument entirely rather than honouring it (003-FR-013)', async () => {
+      // Structural absence is the real guarantee, but an agent WILL try. What matters is
+      // that trying cannot work: the argument reaches nothing, and the call still goes to
+      // the generation the OPERATOR configured.
+      //
+      // Only the v4 handler is mounted, so a honoured `generation: 'v5'` would hit msw's
+      // `onUnhandledRequest: 'error'` and fail this test rather than passing silently.
+      let pathname: string | null = null;
+      gma.use(
+        http.get(`${GMA_BASE_URL}/v4/subclasses/:id`, ({ request }) => {
+          pathname = new URL(request.url).pathname;
+          return HttpResponse.json({
+            successfulConfigSources: ['urn:i:PP:PP'],
+            subclass: { id: 'urn:sub:pl', name: 'Premier League' }
+          });
+        })
+      );
+      const { client, close } = await connect();
+
+      const result = await client.callTool({
+        name: 'get_catalogue_entity',
+        arguments: { type: 'subclass', id: 'urn:sub:pl', generation: 'v5' }
+      });
+
+      // The call succeeded, on v4, with the extra argument discarded.
+      expect(result.isError).toBeFalsy();
+      expect(pathname).toBe('/v4/subclasses/urn%3Asub%3Apl');
+      expect(JSON.stringify(result.structuredContent)).not.toContain('v5');
+
+      await close();
+    });
+
     it('returns structured content carrying instances and completeness', async () => {
       gma.use(http.get(INSTANCES, () => HttpResponse.json(instances200)));
       const { client, close } = await connect();
@@ -216,7 +293,7 @@ describe('MCP protocol smoke', () => {
             ]
           })
         ),
-        http.get(`${GMA_BASE_URL}/v5/subclasses/:id/eventTypes`, () =>
+        http.get(`${GMA_BASE_URL}/v4/subclasses/:id/eventTypes`, () =>
           HttpResponse.json({
             successfulConfigSources: ['urn:i:PP:PP'],
             // `entities`, not `eventTypes`: this operation's 200 is `EntitiesResponse`
@@ -249,7 +326,7 @@ describe('MCP protocol smoke', () => {
 
     it('round-trips get_catalogue_entity by type and id', async () => {
       gma.use(
-        http.get(`${GMA_BASE_URL}/v5/subclasses/:id`, () =>
+        http.get(`${GMA_BASE_URL}/v4/subclasses/:id`, () =>
           HttpResponse.json({
             successfulConfigSources: ['urn:i:PP:PP'],
             subclass: {
@@ -334,7 +411,7 @@ describe('MCP protocol smoke', () => {
 
     it('returns an MCP error from get_catalogue_entity on an unknown id', async () => {
       gma.use(
-        http.get(`${GMA_BASE_URL}/v5/subclasses/:id`, () =>
+        http.get(`${GMA_BASE_URL}/v4/subclasses/:id`, () =>
           HttpResponse.json({ status: 404 }, { status: 404 })
         )
       );

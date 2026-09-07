@@ -69,7 +69,7 @@ describe('telemetry logger', () => {
       logger.warn({
         ...FORBIDDEN_FIELDS,
         tool: 'find_catalogue_entity',
-        operation: 'POST /v5/searchByName',
+        operation: 'searchByName',
         outcome: 'PARTIAL',
         latencyMs: 42
       } as LogFields);
@@ -120,6 +120,7 @@ describe('telemetry logger', () => {
         'errorKind',
         'event',
         'failedInstanceCount',
+        'generation',
         'hop',
         'instanceCount',
         'latencyMs',
@@ -132,6 +133,71 @@ describe('telemetry logger', () => {
         'status',
         'tool'
       ]);
+    });
+
+    it('case: generation is allowlisted and a token-bearing field still is not (003-FR-015, SC-006)', () => {
+      // The whole point of adding one field: it must reach a log line, and adding it must
+      // not have widened anything else. Both halves in one assertion, because the risk of
+      // an allowlist edit is precisely that it lets more through than intended.
+      const { lines, sink } = capture();
+      const logger = createLogger('debug', sink);
+
+      logger.info({
+        tool: 'list_instances',
+        operation: 'listInstances',
+        generation: 'v4',
+        ...FORBIDDEN_FIELDS
+      } as LogFields);
+
+      const parsed = JSON.parse(lines[0]!) as Record<string, unknown>;
+
+      expect(parsed.generation).toBe('v4');
+      expect(Object.keys(parsed).sort()).toEqual([
+        'generation',
+        'level',
+        'operation',
+        'tool',
+        'ts'
+      ]);
+      expect(lines[0]).not.toContain(TOKEN);
+      expect(lines[0]).not.toContain('jane.doe@example.com');
+    });
+
+    it('carries generation onto a span through the same allowlist, not a second path', () => {
+      // The allowlist is the only egress for both logs and span attributes, which is what
+      // makes ONE addition cover diagnostics everywhere.
+      const attributes: Record<string, unknown>[] = [];
+      const span = {
+        setAttributes: (attrs: Record<string, unknown>) => attributes.push(attrs),
+        setStatus: () => undefined,
+        end: () => undefined
+      } as unknown as Parameters<typeof setSpanAttributes>[0];
+
+      setSpanAttributes(span, {
+        operation: 'getEventType',
+        generation: 'v5',
+        ...FORBIDDEN_FIELDS
+      } as LogFields);
+
+      expect(attributes[0]).toEqual({ operation: 'getEventType', generation: 'v5' });
+    });
+
+    it('keeps the operation label free of any generation, so a metric series survives a switch', () => {
+      // research.md R7: `operation` is the LOGICAL id. A versioned label would split every
+      // series in two the moment the generation changed, defeating the point of making it
+      // configurable — so this asserts the convention the client now follows.
+      const { lines, sink } = capture();
+      const logger = createLogger('debug', sink);
+
+      logger.info({ operation: 'listInstances', generation: 'v4', path: '/v4/instances' });
+
+      const parsed = JSON.parse(lines[0]!) as Record<string, string>;
+      expect(parsed.operation).not.toMatch(/v[45]/);
+      expect(parsed.operation).not.toContain('/');
+      expect(parsed.operation).not.toMatch(/^(GET|POST) /);
+      // The detail is not lost — it moved to the two fields built for it.
+      expect(parsed.generation).toBe('v4');
+      expect(parsed.path).toBe('/v4/instances');
     });
 
     it('includes no field whose name suggests a credential, an identity, or a payload', () => {
@@ -229,13 +295,9 @@ describe('telemetry logger', () => {
       } as never);
 
       await expect(
-        withSpan(
-          'gma.call',
-          { tool: 'list_instances', operation: 'GET /v5/instances' },
-          async () => {
-            throw Object.assign(new Error(`GMA rejected ${TOKEN}`), { kind: 'auth' });
-          }
-        )
+        withSpan('gma.call', { tool: 'list_instances', operation: 'listInstances' }, async () => {
+          throw Object.assign(new Error(`GMA rejected ${TOKEN}`), { kind: 'auth' });
+        })
       ).rejects.toThrow();
 
       const flattened = JSON.stringify(attributes);

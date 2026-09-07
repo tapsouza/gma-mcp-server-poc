@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { createGmaClient } from '../../src/core/gmaClient.js';
 import { ToolError } from '../../src/core/types.js';
 import {
+  BOTH_GENERATIONS,
   GMA_BASE_URL,
   TEST_TOKEN,
+  handle,
   requestRecorder,
   testConfig,
   useGmaServer
@@ -18,19 +20,34 @@ import instances500 from '../fixtures/gma/instances/500-server-error.json' with 
 import search200 from '../fixtures/gma/searchByName/200-single-match.json' with { type: 'json' };
 
 const server = useGmaServer();
-const INSTANCES = `${GMA_BASE_URL}/v5/instances`;
-const SEARCH = `${GMA_BASE_URL}/v5/searchByName`;
+
+/**
+ * The by-name search exists ONLY on v5, so its handle and path are fixed while the
+ * generation-parameterised suite below varies everything else (003 research.md R1).
+ */
+const searchByName = handle('searchByName', 'v5');
+const SEARCH = `${GMA_BASE_URL}${searchByName.pathTemplate}`;
 
 function client(overrides: Parameters<typeof testConfig>[0] = {}) {
   return createGmaClient({ config: testConfig(overrides) });
 }
 
-describe('GMA client', () => {
+/**
+ * Every client behaviour, asserted once per generation (003-FR-016, SC-003).
+ *
+ * The RESPONSE BODY is shared — the two generations declare these shapes identically
+ * (003 research.md R2) — but the request HANDLER is mounted per generation and each run
+ * asserts the request arrived at that generation's own path. So routing is genuinely
+ * exercised twice; only the fiction is shared.
+ */
+describe.each(BOTH_GENERATIONS)('GMA client on %s', (generation) => {
+  const listInstances = handle('listInstances', generation);
+  const INSTANCES = `${GMA_BASE_URL}${listInstances.pathTemplate}`;
   describe('case: HTTP 200 yields a complete result', () => {
     it('returns the payload with a complete verdict', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances200)));
 
-      const result = await client().get<typeof instances200>('/v5/instances', {
+      const result = await client().call<typeof instances200>(listInstances, {}, undefined, {
         token: TEST_TOKEN
       });
 
@@ -43,7 +60,7 @@ describe('GMA client', () => {
     it('never returns a bare payload — completeness always accompanies data (FR-005)', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances200)));
 
-      const result = await client().get('/v5/instances', { token: TEST_TOKEN });
+      const result = await client().call(listInstances, {}, undefined, { token: TEST_TOKEN });
 
       expect(result).toHaveProperty('data');
       expect(result).toHaveProperty('completeness');
@@ -55,7 +72,7 @@ describe('GMA client', () => {
     it('returns data plus a caveat naming the failed instance', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances206, { status: 206 })));
 
-      const result = await client().get('/v5/instances', { token: TEST_TOKEN });
+      const result = await client().call(listInstances, {}, undefined, { token: TEST_TOKEN });
 
       expect(result.data).toEqual(instances206);
       expect(result.completeness.complete).toBe(false);
@@ -67,7 +84,9 @@ describe('GMA client', () => {
     it('does not throw on 206 — partial data is normal operation, not an error', async () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(instances206, { status: 206 })));
 
-      await expect(client().get('/v5/instances', { token: TEST_TOKEN })).resolves.toBeDefined();
+      await expect(
+        client().call(listInstances, {}, undefined, { token: TEST_TOKEN })
+      ).resolves.toBeDefined();
     });
   });
 
@@ -81,7 +100,7 @@ describe('GMA client', () => {
       server.use(http.get(INSTANCES, () => HttpResponse.json(body, { status })));
 
       try {
-        await client().get('/v5/instances', { token: TEST_TOKEN });
+        await client().call(listInstances, {}, undefined, { token: TEST_TOKEN });
         expect.unreachable(`HTTP ${status} must not resolve`);
       } catch (error) {
         const toolError = error as ToolError;
@@ -102,7 +121,9 @@ describe('GMA client', () => {
         )
       );
 
-      await expect(client().get('/v5/instances', { token: TEST_TOKEN })).rejects.toSatisfy(
+      await expect(
+        client().call(listInstances, {}, undefined, { token: TEST_TOKEN })
+      ).rejects.toSatisfy(
         (error: ToolError) =>
           !error.message.includes(TEST_TOKEN) && !error.message.includes('do-not-surface')
       );
@@ -119,7 +140,7 @@ describe('GMA client', () => {
       );
 
       try {
-        await client().get('/v5/instances', { token: TEST_TOKEN });
+        await client().call(listInstances, {}, undefined, { token: TEST_TOKEN });
         expect.unreachable('an unreadable body must not resolve');
       } catch (error) {
         const toolError = error as ToolError;
@@ -139,7 +160,9 @@ describe('GMA client', () => {
       );
 
       try {
-        await client({ requestTimeoutMs: 25 }).get('/v5/instances', { token: TEST_TOKEN });
+        await client({ requestTimeoutMs: 25 }).call(listInstances, {}, undefined, {
+          token: TEST_TOKEN
+        });
         expect.unreachable('a timed-out call must not resolve');
       } catch (error) {
         const toolError = error as ToolError;
@@ -159,7 +182,7 @@ describe('GMA client', () => {
       );
 
       const controller = new AbortController();
-      const pending = client({ requestTimeoutMs: 5_000 }).get('/v5/instances', {
+      const pending = client({ requestTimeoutMs: 5_000 }).call(listInstances, {}, undefined, {
         token: TEST_TOKEN,
         signal: controller.signal
       });
@@ -172,7 +195,7 @@ describe('GMA client', () => {
       server.use(http.get(INSTANCES, () => HttpResponse.error()));
 
       try {
-        await client().get('/v5/instances', { token: TEST_TOKEN });
+        await client().call(listInstances, {}, undefined, { token: TEST_TOKEN });
         expect.unreachable('a transport failure must not resolve');
       } catch (error) {
         const toolError = error as ToolError;
@@ -192,7 +215,7 @@ describe('GMA client', () => {
         })
       );
 
-      await client().get('/v5/instances', { token: TEST_TOKEN });
+      await client().call(listInstances, {}, undefined, { token: TEST_TOKEN });
 
       expect(seen).toHaveLength(1);
       expect(seen[0]!.authorization).toBe(`Bearer ${TEST_TOKEN}`);
@@ -209,7 +232,7 @@ describe('GMA client', () => {
         })
       );
 
-      await client().get('/v5/instances', { token: TEST_TOKEN });
+      await client().call(listInstances, {}, undefined, { token: TEST_TOKEN });
 
       const parent = seen[0]!.traceparent;
       // With no OTel SDK registered there is no recording span, so no header is
@@ -222,7 +245,30 @@ describe('GMA client', () => {
       }
     });
 
-    it('puts instancesList in the QUERY STRING for a GET (research.md R3)', async () => {
+    it('puts instancesList in the QUERY STRING for a GET (001 research.md R3)', async () => {
+      // On an operation whose handle declares `instancesIn: 'query'`. Where the
+      // instances go is the TABLE's decision, not one the client infers from the method.
+      const getSubclass = handle('getSubclass', generation);
+      const { seen, record } = requestRecorder();
+      server.use(
+        http.get(`${GMA_BASE_URL}/${generation}/subclasses/:id`, async ({ request }) => {
+          await record(request);
+          return HttpResponse.json({ successfulConfigSources: ['urn:i:PP:PP'] });
+        })
+      );
+
+      await client().call(getSubclass, { id: 'urn:sub:pl' }, undefined, {
+        token: TEST_TOKEN,
+        instances: ['urn:i:PP:PP', 'urn:i:BF:BF']
+      });
+
+      expect(seen[0]!.instancesList).toEqual(['urn:i:PP:PP', 'urn:i:BF:BF']);
+    });
+
+    it('sends NO instances parameter for an operation that declares no placement', async () => {
+      // `listInstances` omits `instancesIn` because listing the instances is what an
+      // agent calls BEFORE it can scope anything. Sending an empty `instancesList` on an
+      // operation whose parameter is declared required would be worse than sending none.
       const { seen, record } = requestRecorder();
       server.use(
         http.get(INSTANCES, async ({ request }) => {
@@ -231,12 +277,12 @@ describe('GMA client', () => {
         })
       );
 
-      await client().get('/v5/instances', {
+      await client().call(listInstances, {}, undefined, {
         token: TEST_TOKEN,
-        instances: ['urn:i:PP:PP', 'urn:i:BF:BF']
+        instances: ['urn:i:PP:PP']
       });
 
-      expect(seen[0]!.instancesList).toEqual(['urn:i:PP:PP', 'urn:i:BF:BF']);
+      expect(seen[0]!.instancesList).toEqual([]);
     });
 
     it('omits the instances parameter entirely when none is supplied', async () => {
@@ -248,9 +294,30 @@ describe('GMA client', () => {
         })
       );
 
-      await client().get('/v5/instances', { token: TEST_TOKEN });
+      await client().call(listInstances, {}, undefined, { token: TEST_TOKEN });
 
       expect(seen[0]!.instancesList).toEqual([]);
+    });
+
+    it('percent-encodes a URN id into the path, once, in the client', async () => {
+      // The encoding that used to be repeated in two tool modules. Every GMA id is a URN
+      // full of colons, so getting this wrong breaks every real lookup.
+      const getSubclass = handle('getSubclass', generation);
+      const { seen, record } = requestRecorder();
+      server.use(
+        http.get(`${GMA_BASE_URL}/${generation}/subclasses/:id`, async ({ request }) => {
+          await record(request);
+          return HttpResponse.json({ successfulConfigSources: ['urn:i:PP:PP'] });
+        })
+      );
+
+      await client().call(getSubclass, { id: 'urn:sub:premier-league' }, undefined, {
+        token: TEST_TOKEN
+      });
+
+      expect(new URL(seen[0]!.url).pathname).toBe(
+        `/${generation}/subclasses/urn%3Asub%3Apremier-league`
+      );
     });
 
     it('puts instancesList in the REQUEST BODY for searchByName (research.md R3)', async () => {
@@ -262,10 +329,11 @@ describe('GMA client', () => {
         })
       );
 
-      await client().post(
-        '/v5/searchByName',
-        { name: 'Premier League', instancesList: ['urn:i:PP:PP'] },
-        { token: TEST_TOKEN }
+      await client().call(
+        searchByName,
+        {},
+        { name: 'Premier League' },
+        { token: TEST_TOKEN, instances: ['urn:i:PP:PP'] }
       );
 
       expect(seen[0]!.body).toEqual({
@@ -286,7 +354,7 @@ describe('GMA client', () => {
         })
       );
 
-      await client().post('/v5/searchByName', { name: 'x' }, { token: TEST_TOKEN });
+      await client().call(searchByName, {}, { name: 'x' }, { token: TEST_TOKEN });
 
       expect(contentType).toContain('application/json');
     });
@@ -302,9 +370,11 @@ describe('GMA client', () => {
         })
       );
 
-      await client().get('/v5/instances', { token: TEST_TOKEN });
+      await client().call(listInstances, {}, undefined, { token: TEST_TOKEN });
 
-      expect(seen[0]!.url.startsWith(`${GMA_BASE_URL}/v5/instances`)).toBe(true);
+      expect(seen[0]!.url.startsWith(INSTANCES)).toBe(true);
+      // And it reached THIS generation's path, not the other one's.
+      expect(new URL(seen[0]!.url).pathname).toBe(`/${generation}/instances`);
     });
 
     it('exposes no way for a caller to supply a base URL', () => {

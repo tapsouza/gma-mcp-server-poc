@@ -61,8 +61,10 @@ function safeUpstreamDetail(status: number, operation: string): string {
  * 200 and 206 are NOT terminal — they carry a `Completeness` and must go to
  * `completeness.fromHttpStatus` instead.
  *
- * @param operation a stable label for the GMA call, e.g. `GET /v5/instances`. Never
- *   a full URL, which could carry a query-string credential.
+ * @param operation a stable label for the GMA call — the LOGICAL operation id, e.g.
+ *   `listInstances`. Never a full URL, which could carry a query-string credential, and
+ *   deliberately generation-free: this label reaches agent-visible error text, where
+ *   upstream mechanics do not belong (003-FR-012, research.md R7).
  */
 export function fromHttpStatus(status: number, operation: string): ToolError {
   if (status === 200 || status === 206) {
@@ -113,6 +115,35 @@ export function argumentError(message: string, hint?: string): ToolError {
   return new ToolError(
     'argument',
     hint === undefined ? `${message} ${GUIDANCE.argument}` : `${message} ${hint}`,
+    false
+  );
+}
+
+/**
+ * A capability needs an operation on a generation that does not offer it (003-FR-006).
+ *
+ * Thrown during startup resolution, so the process refuses to start rather than failing
+ * at an agent's first call. The message names all four facts an operator needs — the
+ * capability, the operation, the generation that was asked for, and the generations that
+ * do offer it — so it can be fixed without reading source. It carries no credential and
+ * no personal datum (001-FR-020).
+ *
+ * This lives in `errors.ts`, not beside the resolver, because this file is the single
+ * place `ToolError`s are constructed (Principle II). Putting it in `surface.ts` would
+ * erode the architecture assertion that enforces exactly that.
+ */
+export function unsatisfiableGeneration(
+  capability: string,
+  operation: string,
+  effective: string,
+  availableOn: readonly string[]
+): ToolError {
+  return new ToolError(
+    'config',
+    `Capability "${capability}" requires operation "${operation}" on generation ` +
+      `"${effective}", but that operation exists only on: ${availableOn.join(', ')}. ` +
+      `Set GMA_CATALOGUE_GENERATION to a generation that offers it, or pin this ` +
+      `operation to one. ${GUIDANCE.config}`,
     false
   );
 }
