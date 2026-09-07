@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process';
-import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { dispatch } from '../repl/commands.js';
 import { createRenderer } from '../repl/render.js';
 
@@ -22,6 +25,42 @@ import { createRenderer } from '../repl/render.js';
 
 const ENTRYPOINT = 'dist-agent/main.js';
 
+/**
+ * A working directory containing the two build outputs and **no `.env`**.
+ *
+ * Without this, these tests are not hermetic. `agent/main.ts` calls
+ * `process.loadEnvFile('.env')`, resolved against the process's CWD — and a spawned child
+ * inherits the parent's CWD, which under `npm run test:agent` is the repository root. So
+ * an engineer with a real `.env` (the normal state after following the README) silently
+ * supplied the very variables the two "missing configuration" cases exist to withhold,
+ * and both failed. On a machine with no `.env` they passed. A test that depends on an
+ * untracked file being absent is not testing what it claims.
+ *
+ * Controlling the environment is not enough on its own: `loadEnvFile` does not override an
+ * already-set variable, so `env:` alone cannot express "this variable is unset" while a
+ * `.env` on disk defines it. The absence has to be real, which means a directory with no
+ * `.env` in it.
+ *
+ * The build outputs are **symlinked rather than copied** so that `dist/index.js` — which
+ * `spawn.ts` names as a RELATIVE path, and which therefore only resolves from a directory
+ * shaped like the repository root — still starts, and still finds `node_modules` through
+ * its real path. That keeps this seam faithful to how the harness actually runs, rather
+ * than passing an absolute entrypoint that would quietly break the child spawn.
+ */
+const REPO_ROOT = resolve(import.meta.dirname, '../..');
+let hermeticCwd: string;
+
+beforeAll(() => {
+  hermeticCwd = mkdtempSync(join(tmpdir(), 'gma-cli-suite-'));
+  symlinkSync(join(REPO_ROOT, 'dist'), join(hermeticCwd, 'dist'), 'dir');
+  symlinkSync(join(REPO_ROOT, 'dist-agent'), join(hermeticCwd, 'dist-agent'), 'dir');
+});
+
+afterAll(() => {
+  // `force` so a failed `beforeAll` cannot turn cleanup into a second, confusing failure.
+  rmSync(hermeticCwd, { recursive: true, force: true });
+});
+
 const VALID_ENV = {
   // `.invalid` is reserved by RFC 2606 and never resolves. No test here reaches GMA.
   GMA_BASE_URL: 'https://gma.example-nonprod.invalid',
@@ -41,16 +80,21 @@ interface RunResult {
 /**
  * Run the harness with the given input and environment.
  *
- * `HOME` is pointed at a path that does not exist, so no test can read or write the
- * engineer's real `~/.gma-agent/token.json`.
+ * Two isolation measures, both load-bearing:
+ *
+ *  - `HOME` points at a path that does not exist, so no test can read or write the
+ *    engineer's real `~/.gma-agent/token.json`.
+ *  - `cwd` is the `.env`-free directory built above, so the environment each test declares
+ *    is the WHOLE environment the harness sees. See `hermeticCwd`.
  */
 function run(options: {
   input?: string;
   env?: Record<string, string>;
   args?: string[];
 }): Promise<RunResult> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolvePromise, reject) => {
     const child = spawn('node', [ENTRYPOINT, ...(options.args ?? [])], {
+      cwd: hermeticCwd,
       env: {
         PATH: process.env.PATH ?? '',
         HOME: '/nonexistent-home-for-cli-suite',
@@ -68,7 +112,7 @@ function run(options: {
       stderr += chunk.toString('utf8');
     });
     child.on('error', reject);
-    child.on('close', (code) => resolve({ code, stdout, stderr }));
+    child.on('close', (code) => resolvePromise({ code, stdout, stderr }));
 
     child.stdin.end(options.input ?? '');
   });
