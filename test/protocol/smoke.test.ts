@@ -219,7 +219,9 @@ describe('MCP protocol smoke', () => {
         http.get(`${GMA_BASE_URL}/v5/subclasses/:id/eventTypes`, () =>
           HttpResponse.json({
             successfulConfigSources: ['urn:i:PP:PP'],
-            eventTypes: [{ id: 'urn:et:w', name: 'Winner' }]
+            // `entities`, not `eventTypes`: this operation's 200 is `EntitiesResponse`
+            // on both generations (research.md R8 defect 1).
+            entities: [{ id: 'urn:et:w', name: 'Winner' }]
           })
         )
       );
@@ -253,7 +255,10 @@ describe('MCP protocol smoke', () => {
             subclass: {
               id: 'urn:sub:pl',
               name: 'Premier League',
-              superclass: { id: 'urn:sc:football', name: 'Football' }
+              // Flat scalars, not a nested parent object: that is what both
+              // generations declare (research.md R8 defect 2).
+              superclassId: 'urn:sc:football',
+              superclassName: 'Football'
             }
           })
         )

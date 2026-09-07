@@ -1,6 +1,6 @@
 {
   "successfulConfigSources": ["urn:i:PP:PP", "urn:i:BF:BF"],
-  "eventTypes": [
+  "entities": [
     { "id": "urn:et:pl-winner", "name": "Winner" },
     { "id": "urn:et:pl-top-scorer", "name": "Top Goalscorer" },
     { "id": "urn:et:pl-relegation", "name": "Relegation" }

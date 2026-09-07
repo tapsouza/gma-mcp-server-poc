@@ -18,9 +18,19 @@ import type { Ancestor, CatalogueEntity } from './schemas.js';
 const SUBCLASS_EVENT_TYPES = '/v5/subclasses/{id}/eventTypes';
 const SUPERCLASS = '/v5/superclasses/{id}';
 
-/** The subset of a child-listing response this module reads. */
+/**
+ * The subset of a child-listing response this module reads.
+ *
+ * `entities` — NOT `eventTypes` — is the key a subclass's event-type listing arrives
+ * under. Both generations declare that operation's `200` as `EntitiesResponse`, which
+ * is `{ entities: Entity[] }`, and GMA's own delegate
+ * (`SearchCatalogueApiDelegateImpl.searchEventTypesByInstancesAndSubclassId`) builds
+ * exactly that. Reading `eventTypes` here made every matched subclass report an empty
+ * `children` list under a fully-successful completeness verdict — the confidently-wrong
+ * answer Principle II exists to prevent (research.md R8 defect 1).
+ */
 interface ChildrenResponse {
-  readonly eventTypes?: readonly { id?: string | null; name?: string | null }[] | null;
+  readonly entities?: readonly { id?: string | null; name?: string | null }[] | null;
   readonly superclass?: {
     readonly subclasses?: readonly { id?: string | null; name?: string | null }[] | null;
   } | null;
@@ -87,7 +97,7 @@ export async function fetchChildren(
     );
 
     return {
-      children: toChildren(result.data?.eventTypes, 'eventType', parentAncestry),
+      children: toChildren(result.data?.entities, 'eventType', parentAncestry),
       completeness: result.completeness
     };
   }

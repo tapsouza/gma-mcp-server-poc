@@ -156,6 +156,55 @@ describe('find_catalogue_entity (Story 2, P2)', () => {
     });
   });
 
+  describe('case: subclass children are read from entities[] (R8 defect 1)', () => {
+    // The assertion that would have caught defect 1. Before this correction,
+    // `traversal.ts` read `eventTypes[]` where both generations declare this
+    // operation's 200 as `EntitiesResponse` — `{ entities: Entity[] }` — so EVERY
+    // matched subclass reported no children under a fully-successful verdict.
+    //
+    // Written inline rather than from the fixture: the fixture is what encoded the
+    // mistake, so pinning the schema shape here is what stops it recurring.
+
+    it('returns non-empty children for a matched subclass', async () => {
+      server.use(
+        http.post(SEARCH, () => HttpResponse.json(singleMatch)),
+        http.get(SUBCLASS_CHILDREN, () =>
+          HttpResponse.json({
+            successfulConfigSources: ['urn:i:PP:PP'],
+            entities: [
+              { id: 'urn:et:pl-winner', name: 'Winner' },
+              { id: 'urn:et:pl-top-scorer', name: 'Top Goalscorer' }
+            ]
+          })
+        )
+      );
+
+      const payload = await run({ name: 'Premier League' });
+      const children = payload.children as CatalogueEntity[];
+
+      expect(children).not.toEqual([]);
+      expect(children.map((c) => c.name)).toEqual(['Winner', 'Top Goalscorer']);
+    });
+
+    it('ignores an eventTypes[] key, which no generation sends', async () => {
+      // The exact shape the old implementation expected. It must now produce NO
+      // children, so a regression fails here rather than passing by accident.
+      server.use(
+        http.post(SEARCH, () => HttpResponse.json(singleMatch)),
+        http.get(SUBCLASS_CHILDREN, () =>
+          HttpResponse.json({
+            successfulConfigSources: ['urn:i:PP:PP'],
+            eventTypes: [{ id: 'urn:et:pl-winner', name: 'Winner' }]
+          })
+        )
+      );
+
+      const payload = await run({ name: 'Premier League' });
+
+      expect(payload.children).toEqual([]);
+    });
+  });
+
   describe('case: scenario 2 — several matches return all candidates, none resolved (FR-014, SC-002)', () => {
     it('returns every candidate and resolves nothing', async () => {
       server.use(http.post(SEARCH, () => HttpResponse.json(multiMatch)));

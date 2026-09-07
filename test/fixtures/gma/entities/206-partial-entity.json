@@ -10,6 +10,7 @@
   "subclass": {
     "id": "urn:sub:premier-league",
     "name": "Premier League",
-    "superclass": { "id": "urn:sc:football", "name": "Football" }
+    "superclassId": "urn:sc:football",
+    "superclassName": "Football"
   }
 }

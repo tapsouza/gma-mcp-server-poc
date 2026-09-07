@@ -7,5 +7,5 @@
       "message": "Config source returned no catalogue data for this identifier"
     }
   ],
-  "eventTypes": [{ "id": "urn:et:pl-winner", "name": "Winner" }]
+  "entities": [{ "id": "urn:et:pl-winner", "name": "Winner" }]
 }

@@ -34,12 +34,25 @@ export const GET_CATALOGUE_ENTITY_DESCRIPTION =
   'e.g. one the user chose from a candidate list. To find an entity by name instead, use ' +
   'find_catalogue_entity. Relay any data-completeness caveat to the user.';
 
-/** One `{ id, name }` node plus whatever parent GMA nests inside it. */
+/**
+ * One entity, with its ancestry as the FLAT SCALARS GMA actually returns.
+ *
+ * Both generations declare ancestry this way: `Subclass` carries
+ * `superclassId` / `superclassName`; `EventType` adds `subclassId` / `subclassName`.
+ * Neither schema nests a `superclass` or `subclass` object, and GMA's domain records
+ * (`gbp.gma.domain.catalogue.Subclass`, `.EventType`) carry exactly these flat fields.
+ *
+ * Walking nested parent objects here made `ancestors` always `[]`, silently removing
+ * the very field the schema describes as how two same-named entities are told apart
+ * (research.md R8 defect 2, 001-FR-014).
+ */
 interface UpstreamNode {
   readonly id?: string | null;
   readonly name?: string | null;
-  readonly superclass?: UpstreamNode | null;
-  readonly subclass?: UpstreamNode | null;
+  readonly superclassId?: string | null;
+  readonly superclassName?: string | null;
+  readonly subclassId?: string | null;
+  readonly subclassName?: string | null;
 }
 
 /** The response shape, keyed by the type requested. */
@@ -60,40 +73,52 @@ export interface GetCatalogueEntityResult {
   readonly completeness: Completeness;
 }
 
+/** An ancestry id is usable only if it is a non-blank string — see `collectAncestors`. */
+function usableId(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 /**
- * Walk the nested parents GMA returns into a flat ancestor chain.
+ * Derive the ancestor chain from the flat scalars GMA returns (data-model.md §8).
  *
- * The nesting is narrowest-outward (`eventType.subclass.superclass`), while
- * `ancestors` is broadest-first — the order a human reads a path in — so the collected
- * chain is reversed.
+ * Built broadest-first — superclass, then subclass — which is the order a human reads
+ * a path in, and the order the `ancestors` contract already promised. No reversal is
+ * needed: unlike a nested walk, the scalars are read in the order they are emitted.
+ *
+ * A superclass has no parent, so its chain is empty.
+ *
+ * A missing or blank scalar yields a SHORTER chain rather than a fabricated entry. An
+ * invented ancestor id is worse than a shorter path, because an agent may then try to
+ * fetch it and get a `notFound` for an entity that never existed.
  */
 function collectAncestors(node: UpstreamNode, type: EntityType): Ancestor[] {
   const chain: Ancestor[] = [];
 
-  if (type === 'eventType' && node.subclass) {
-    const subclass = node.subclass;
-    if (typeof subclass.id === 'string') {
-      chain.push({ id: subclass.id, name: subclass.name ?? subclass.id, type: 'subclass' });
-      const superclass = subclass.superclass;
-      if (superclass && typeof superclass.id === 'string') {
-        chain.push({
-          id: superclass.id,
-          name: superclass.name ?? superclass.id,
-          type: 'superclass'
-        });
-      }
-    }
-    return chain.reverse();
+  if (type === 'superclass') return chain;
+
+  const superclassId = usableId(node.superclassId);
+  if (superclassId !== null) {
+    chain.push({
+      id: superclassId,
+      name: usableId(node.superclassName) ?? superclassId,
+      type: 'superclass'
+    });
   }
 
-  if (type === 'subclass' && node.superclass) {
-    const superclass = node.superclass;
-    if (typeof superclass.id === 'string') {
-      chain.push({ id: superclass.id, name: superclass.name ?? superclass.id, type: 'superclass' });
+  if (type === 'eventType') {
+    const subclassId = usableId(node.subclassId);
+    if (subclassId !== null) {
+      chain.push({
+        id: subclassId,
+        name: usableId(node.subclassName) ?? subclassId,
+        type: 'subclass'
+      });
     }
   }
 
-  return chain.reverse();
+  return chain;
 }
 
 /**

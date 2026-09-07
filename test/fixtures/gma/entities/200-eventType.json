@@ -3,10 +3,9 @@
   "eventType": {
     "id": "urn:et:pl-winner",
     "name": "Winner",
-    "subclass": {
-      "id": "urn:sub:premier-league",
-      "name": "Premier League",
-      "superclass": { "id": "urn:sc:football", "name": "Football" }
-    }
+    "superclassId": "urn:sc:football",
+    "superclassName": "Football",
+    "subclassId": "urn:sub:premier-league",
+    "subclassName": "Premier League"
   }
 }

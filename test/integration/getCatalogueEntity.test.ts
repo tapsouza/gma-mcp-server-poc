@@ -145,6 +145,156 @@ describe('get_catalogue_entity (Story 3, P3)', () => {
     });
   });
 
+  describe('case: ancestry is derived from flat scalars, not nested objects (R8 defect 2, 001-FR-014)', () => {
+    // The assertion that would have caught defect 2. Before this correction,
+    // `collectAncestors` walked nested `subclass.superclass` objects that NEITHER
+    // generation returns, so `ancestors` was always empty — silently removing the one
+    // field 001-FR-014 relies on to tell two same-named entities apart. The fixtures
+    // encoded the same mistake, which is why the suite stayed green.
+    //
+    // These bodies are written INLINE rather than taken from a fixture, deliberately:
+    // the point is to pin the shape read from GMA's schema, so a future edit to a
+    // fixture cannot quietly move what this asserts.
+
+    it('reads one ancestor for a subclass, from superclassId and superclassName', async () => {
+      server.use(
+        http.get(SUBCLASS, () =>
+          HttpResponse.json({
+            successfulConfigSources: ['urn:i:PP:PP'],
+            subclass: {
+              id: 'urn:sub:premier-league',
+              name: 'Premier League',
+              superclassId: 'urn:sc:football',
+              superclassName: 'Football'
+            }
+          })
+        )
+      );
+
+      const result = await run({ type: 'subclass', id: 'urn:sub:premier-league' });
+
+      expect(result.entity.ancestors).toEqual([
+        { id: 'urn:sc:football', name: 'Football', type: 'superclass' }
+      ]);
+    });
+
+    it('reads two ancestors for an event type, superclass then subclass', async () => {
+      server.use(
+        http.get(EVENT_TYPE, () =>
+          HttpResponse.json({
+            successfulConfigSources: ['urn:i:PP:PP'],
+            eventType: {
+              id: 'urn:et:pl-winner',
+              name: 'Winner',
+              superclassId: 'urn:sc:football',
+              superclassName: 'Football',
+              subclassId: 'urn:sub:premier-league',
+              subclassName: 'Premier League'
+            }
+          })
+        )
+      );
+
+      const result = await run({ type: 'eventType', id: 'urn:et:pl-winner' });
+
+      // Broadest-first, which is the order a human reads a path in.
+      expect(result.entity.ancestors).toEqual([
+        { id: 'urn:sc:football', name: 'Football', type: 'superclass' },
+        { id: 'urn:sub:premier-league', name: 'Premier League', type: 'subclass' }
+      ]);
+    });
+
+    it('ignores a nested parent object, which no generation sends', async () => {
+      // The exact shape the old implementation expected. It must now yield NO
+      // ancestor, so a regression to nested-object reading fails here rather than
+      // passing by accident.
+      server.use(
+        http.get(SUBCLASS, () =>
+          HttpResponse.json({
+            successfulConfigSources: ['urn:i:PP:PP'],
+            subclass: {
+              id: 'urn:sub:premier-league',
+              name: 'Premier League',
+              superclass: { id: 'urn:sc:football', name: 'Football' }
+            }
+          })
+        )
+      );
+
+      const result = await run({ type: 'subclass', id: 'urn:sub:premier-league' });
+
+      expect(result.entity.ancestors).toEqual([]);
+    });
+
+    it('yields a SHORTER chain on a blank scalar, never a fabricated ancestor', async () => {
+      // An invented ancestor id is worse than a shorter path: an agent may try to
+      // fetch it and get a notFound for an entity that never existed.
+      server.use(
+        http.get(EVENT_TYPE, () =>
+          HttpResponse.json({
+            successfulConfigSources: ['urn:i:PP:PP'],
+            eventType: {
+              id: 'urn:et:pl-winner',
+              name: 'Winner',
+              superclassId: 'urn:sc:football',
+              superclassName: 'Football',
+              subclassId: '   ',
+              subclassName: 'Premier League'
+            }
+          })
+        )
+      );
+
+      const result = await run({ type: 'eventType', id: 'urn:et:pl-winner' });
+
+      expect(result.entity.ancestors).toEqual([
+        { id: 'urn:sc:football', name: 'Football', type: 'superclass' }
+      ]);
+      // The blank id must not appear at all, in any form.
+      expect(result.entity.ancestors.map((a) => a.id)).not.toContain('');
+      expect(result.entity.ancestors).toHaveLength(1);
+    });
+
+    it('falls back to the id as the name when only the ancestor name is blank', async () => {
+      server.use(
+        http.get(SUBCLASS, () =>
+          HttpResponse.json({
+            successfulConfigSources: ['urn:i:PP:PP'],
+            subclass: {
+              id: 'urn:sub:premier-league',
+              name: 'Premier League',
+              superclassId: 'urn:sc:football',
+              superclassName: ''
+            }
+          })
+        )
+      );
+
+      const result = await run({ type: 'subclass', id: 'urn:sub:premier-league' });
+
+      // A usable id with no name is still a usable ancestor — the id names it.
+      expect(result.entity.ancestors).toEqual([
+        { id: 'urn:sc:football', name: 'urn:sc:football', type: 'superclass' }
+      ]);
+    });
+
+    it('gives a superclass an empty chain, since no parent exists', async () => {
+      server.use(
+        http.get(SUPERCLASS, () =>
+          HttpResponse.json({
+            successfulConfigSources: ['urn:i:PP:PP'],
+            // Even if upstream sent ancestry scalars on a superclass, it has no parent.
+            superclass: { id: 'urn:sc:football', name: 'Football', superclassId: 'urn:sc:bogus' }
+          })
+        )
+      );
+
+      const result = await run({ type: 'superclass', id: 'urn:sc:football' });
+
+      expect(result.entity.ancestors).toEqual([]);
+    });
+  });
+
   describe('case: scenario 2 — an unknown id is notFound, not an empty success', () => {
     it('raises kind notFound on a 404', async () => {
       server.use(http.get(SUBCLASS, () => HttpResponse.json(entity404, { status: 404 })));
