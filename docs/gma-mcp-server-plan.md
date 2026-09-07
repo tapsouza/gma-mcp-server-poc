@@ -32,6 +32,34 @@ end-to-end, then templatises for growth.
 
 ---
 
+> **Amended 2026-09-07 (feature 003).** Everywhere below that names a `/v5/…` path as *the*
+> v1 surface is now **out of date in one respect**: upstream publishes **two current** catalogue
+> generations, and **v4 is the default**. v5 is reached only where a capability declares a
+> per-operation requirement, checked at startup, with no fallback between generations.
+>
+> Exactly one such requirement exists: **v4 has no by-name search of any kind** (zero occurrences
+> in `api_catalogue_v4.yaml`, verified 2026-09-07), so `find_catalogue_entity` searches on
+> `POST /v5/searchByName` while its child hop follows the v4 default.
+>
+> Read every `/v5/x` below as `/{v4|v5}/x`, with v4 the default, **except** `searchByName`, which
+> is v5-only. Two further consequences:
+>
+> 1. **Every partial-failure and status fact in §2 holds identically on v4** — verified operation
+>    by operation on 2026-09-07. Only the totals differ, because v5 declares more operations.
+> 2. **The `operation` log field is no longer `GET /v5/instances`** but the logical id
+>    (`listInstances`), with `generation` and `path` carrying the detail. A versioned label
+>    splits a metric series in two the moment the generation changes.
+>
+> **No architectural decision changed here either.** The single place any upstream path or
+> generation appears is now `src/core/surface.ts`; tools hold pre-resolved handles and cannot name
+> either. Authoritative record: `specs/003-v4-catalogue-default/`, and the constitution at
+> **v1.1.0**, which this document does not override.
+>
+> ⚠️ Two **pre-existing defects** were also corrected under 003, both in read paths this document
+> describes: the subclass child listing read `eventTypes[]` where both generations return
+> `entities[]`, and ancestry was read from nested parent objects where both generations return flat
+> `superclassId`/`subclassName` scalars. See `specs/003-v4-catalogue-default/research.md` R8.
+
 ## 1. Design decisions (the whole tree, resolved)
 
 | # | Decision | Choice | Why |
@@ -43,15 +71,15 @@ end-to-end, then templatises for growth.
 | 5 | Token transport (HTTP) | **Standard MCP OAuth** (server = resource server) | Spec-blessed, keeps the server stateless/credential-free, future MCP hosts "just work". |
 | 6 | Tool strategy | **Curated, task-oriented** tools | Small, LLM-friendly tool surface. Auto-generating all of GMA's API would flood tool-selection and leak HTTP shape at the model. |
 | 7 | Tool ↔ GMA mapping | **Task-oriented** (collapse calls) with **hybrid resolve-or-disambiguate** | Ergonomic for agents; the discipline below keeps it safe. |
-| 8 | GMA client | **Completeness-aware** | Derives per-instance success/failure from the v5 signal (HTTP 200/206 + `successfulConfigSources`/`failedConfigSources` — ⚠️ *not* a `status` envelope, see §2) so partial data is never presented as complete. |
+| 8 | GMA client | **Completeness-aware** | Derives per-instance success/failure from the HTTP status (200/206 + `successfulConfigSources`/`failedConfigSources` — ⚠️ *not* a `status` envelope, see §2) so partial data is never presented as complete. ⚠️ *2026-09-07:* identical on **both** generations, which is why one completeness module serves both. |
 | 9 | Outcome mapping | Partial (HTTP 206) = **result + structured caveat**; `400`/`500` = tool error; `401` = flagged auth error | Multi-instance partial failure is normal operation for a BFF, not an error — but the caveat must be unmissable. See §4.2. |
 | 10 | Language | **TypeScript** | MCP spec is TS-first, best Streamable-HTTP support; owned by a TS team; no value in sharing Java DTOs (we deliberately hide them). |
 | 11 | Environment routing | **Env-config** (one deploy per GMA env); GMA base URL never a tool arg | Agents must not choose prod-vs-QA; it's an operational concern. Uses the org's existing per-brand deployment config convention. |
 | 12 | Instances param | **Config default + optional per-tool override + `list_instances` tool** | Naive queries just work; power users narrow; agents can discover valid brand codes. |
 | 13 | Observability | **OTel-instrumented**; propagate `traceparent` to GMA | GMA depends on Micrometer + OpenTelemetry, but ⚠️ tracing is **enabled only in dev** (§2); prod uses Datadog. Emitting `traceparent` still costs nothing and is correct. |
-| 14 | Testing | **Unit + mocked-GMA integration** + thin **MCP-protocol smoke**; live-GMA manual | Correctness-critical logic (resolution, disambiguation, caveat) is deterministically testable against fixtures covering every **HTTP outcome** (200/206/400/401/404/500 + simulated timeout). |
+| 14 | Testing | **Unit + mocked-GMA integration** + thin **MCP-protocol smoke**; live-GMA manual | Correctness-critical logic (resolution, disambiguation, caveat) is deterministically testable against fixtures covering every **HTTP outcome** (200/206/400/401/404/500 + simulated timeout). ⚠️ *2026-09-07:* suites are parameterised over **both** generations, sharing one response body while binding each test double per generation and asserting the request path — so routing is exercised twice and only the body is shared. |
 | 15 | Repo & scaffold | **New repo**; Prefab TS template **deferred while local-only** (decided 2026-09-03) | Nothing is deployed in v1, so the template's pipeline/TLS/monitoring value is unrealised. Still required before any non-local deployment. Env-config discipline (§invariant 4) is kept regardless, which is what keeps later adoption a config exercise. |
-| 16 | v1 surface | **v4/v5 `api_catalogue.yaml`** (avoid deprecated `search.yaml` market ops) | README flags v4/v5 as the current catalogue surface; don't build new tools on `deprecated: true` endpoints. |
+| 16 | v1 surface | ⚠️ *Amended 2026-09-07:* **both catalogue generations**, `api_catalogue_v4.yaml` and `api_catalogue.yaml`, with **v4 the default** and v5 reached only by declared per-operation requirement (avoid deprecated `search.yaml` market ops) | Upstream documents both as current and **neither has a `deprecated: true` operation**, so defaulting to v4 satisfies the no-deprecated-endpoints rule. The one exception is `searchByName`, which exists on v5 only. |
 | 17 | v1 tools | **3 tools**: `list_instances`, `find_catalogue_entity`, `get_catalogue_entity` | Small, coherent, proves the full pipeline without flooding the model. |
 
 ### Architectural invariants (hard rules, not conventions)

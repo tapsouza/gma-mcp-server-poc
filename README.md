@@ -54,6 +54,35 @@ Retrieves an entity by `type` and `id` — typically an id a human picked from a
 **Input**: `{ type: 'superclass' | 'subclass' | 'eventType', id, instances? }`.
 **Output**: `{ entity, completeness }`.
 
+## Which upstream generation answers
+
+GMA publishes **two current** catalogue generations, v4 and v5. Neither has a deprecated
+operation, and upstream's own documentation treats both as current.
+
+**v4 is the default.** v5 is reached only where a capability declares a per-operation requirement
+for it, and that requirement is checked **at startup**: an operation a capability needs on a
+generation that does not offer it makes the process refuse to start, naming the capability, the
+operation, and the generations that do offer it. There is deliberately **no fallback** — a
+try-v4-then-v5 design emits a request that really fails, pollutes upstream error metrics, and makes
+a configuration mistake indistinguishable from an outage.
+
+Exactly one such requirement exists today: **v4 has no by-name search of any kind**, so
+`find_catalogue_entity` searches on v5 while listing children on the v4 default. One tool call, two
+generations, one aggregated completeness verdict. That is why requirements are declared per
+**operation** rather than per capability — a capability-wide pin would drag the child listing onto
+v5 too and defeat the point for the tool that matters most.
+
+None of this is visible to the model. No tool schema, description, or output mentions a generation,
+a version, or a path, and an agent cannot select one: the choice is the operator's, made once via
+`GMA_CATALOGUE_GENERATION`. Diagnostics do carry it — every upstream call logs
+`generation=v4`/`v5` alongside the logical `operation` id — so an operator can always tell which
+generation answered.
+
+`core/surface.ts` is the single place any of this lives: one table of the six logical operations,
+which generations offer each, and each one's path template. Tools hold pre-resolved handles and
+therefore **cannot** name a path or a generation, which an architecture test enforces by asserting
+no versioned path literal exists anywhere else.
+
 ## Running it locally
 
 Requires **Node.js 22 LTS**.
@@ -78,15 +107,16 @@ Every operational value comes from the environment. None may be supplied by an a
 embedded in the build. **Missing required configuration makes the process refuse to start** rather
 than fail at the first request.
 
-| Variable                | Required   | Default | Notes                                                                                                                                 |
-| ----------------------- | ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `GMA_BASE_URL`          | yes        | —       | Which GMA to call. Deliberately **not** a tool argument: environment selection is deployment's job, never the agent's                 |
-| `GMA_DEFAULT_INSTANCES` | yes        | —       | Comma-separated codes used when a tool supplies no `instances`                                                                        |
-| `OKTA_ISSUER`           | yes        | —       | GMA's issuer is a **per-environment** authorization server, so a token is valid against exactly one GMA environment. Never widen this |
-| `GMA_TIMEOUT_MS`        | no         | `30000` | Per-request timeout                                                                                                                   |
-| `GMA_MAX_CANDIDATES`    | no         | `25`    | Above this match count, a search reports `tooBroad`                                                                                   |
-| `LOG_LEVEL`             | no         | `info`  | `debug` \| `info` \| `warn` \| `error`                                                                                                |
-| `GMA_USER_TOKEN`        | stdio only | —       | The operator's token. stdio has no HTTP request to carry a bearer, so it comes from the environment — **development only**            |
+| Variable                   | Required   | Default | Notes                                                                                                                                                     |
+| -------------------------- | ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GMA_BASE_URL`             | yes        | —       | Which GMA to call. Deliberately **not** a tool argument: environment selection is deployment's job, never the agent's                                     |
+| `GMA_DEFAULT_INSTANCES`    | yes        | —       | Comma-separated codes used when a tool supplies no `instances`                                                                                            |
+| `OKTA_ISSUER`              | yes        | —       | GMA's issuer is a **per-environment** authorization server, so a token is valid against exactly one GMA environment. Never widen this                     |
+| `GMA_TIMEOUT_MS`           | no         | `30000` | Per-request timeout                                                                                                                                       |
+| `GMA_MAX_CANDIDATES`       | no         | `25`    | Above this match count, a search reports `tooBroad`                                                                                                       |
+| `GMA_CATALOGUE_GENERATION` | no         | `v4`    | Which upstream catalogue generation answers: `v4` or `v5`. An unrecognised value refuses startup rather than defaulting silently. Never an agent argument |
+| `LOG_LEVEL`                | no         | `info`  | `debug` \| `info` \| `warn` \| `error`                                                                                                                    |
+| `GMA_USER_TOKEN`           | stdio only | —       | The operator's token. stdio has no HTTP request to carry a bearer, so it comes from the environment — **development only**                                |
 
 ## Trying it with an agent
 
@@ -160,6 +190,7 @@ src/
 │   └── health.ts         # identity-free health signal
 ├── core/                 # SHARED — must not import from domains/
 │   ├── config.ts         # env config + fail-fast startup validation
+│   ├── surface.ts        # the ONLY place an upstream path or generation appears
 │   ├── identity.ts       # per-invocation token extraction; no globals
 │   ├── gmaClient.ts      # typed GMA calls; forwards token + traceparent
 │   ├── completeness.ts   # HTTP outcome → verdict; multi-hop aggregation

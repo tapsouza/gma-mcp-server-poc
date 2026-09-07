@@ -20,6 +20,30 @@ import { unsatisfiableGeneration } from './errors.js';
  * never imports one itself.
  */
 
+/**
+ * ## Adding a capability that requires a specific generation
+ *
+ * One line, in the domain's `CATALOGUE_PINS`:
+ *
+ * ```ts
+ * export const CATALOGUE_PINS: OperationPins = Object.freeze({
+ *   searchByName: 'v5',
+ *   someNewOperation: 'v5'   // declared once, honoured on every deployment
+ * });
+ * ```
+ *
+ * No change to any shared calling code, and no change to any other capability. If the
+ * operation is not available on the generation you pin it to — or on the deployment
+ * default when you forget to pin it — the process **refuses to start**, naming the
+ * capability, the operation, and the generations that do offer it. It does not fail at
+ * an agent's first use, which is the point: startup is the only moment where failing is
+ * free.
+ *
+ * Removing a pin is equally one line. If upstream ever adds by-name search to v4, the
+ * whole migration is deleting `searchByName: 'v5'` — the table's `availableOn` gains a
+ * `v4` entry and every unpinned operation follows the deployment default already.
+ */
+
 /** A GMA catalogue generation. Two values because two exist upstream (research.md R1). */
 export type Generation = 'v4' | 'v5';
 

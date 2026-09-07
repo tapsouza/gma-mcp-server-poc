@@ -1,10 +1,10 @@
 # Must-cover matrix
 
-The constitution (v1.0.2, _Development Workflow & Quality Gates_) makes these cases
+The constitution (v1.1.0, _Development Workflow & Quality Gates_) makes these cases
 **blocking**, and requires each to be "covered by a test naming the case". This file is the
 audit: every row names the `describe('case: …')` block that covers it.
 
-Verified by `npm test` — 3 tool suites, 8 unit suites, 1 protocol suite.
+Verified by `npm test` — 3 tool suites, 9 unit suites, 1 protocol suite.
 
 ## Quickstart must-cover list
 
@@ -45,6 +45,47 @@ Each N/A is asserted, not assumed: the test states why the outcome cannot arise 
 structural fact that makes it so (no query parameter; a single hop). If a later change gave one
 of these tools a second hop or a search input, the corresponding row stops being N/A and needs a
 real test — the assertion is what will make that visible.
+
+## 003 — v4 catalogue surface by default (quickstart Validation 1)
+
+Every case the 003 feature adds, including the **two R8 rows** for defects that predate it.
+
+| Case (003 quickstart.md Validation 1)                                                                               | Named test block                                                                                                                                                                                 | File                                               |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| Default config → non-search operations go to a **v4** path (FR-001, FR-017, SC-001)                                 | `case: default config routes every non-search operation to v4 (003-FR-001, FR-017, SC-001)`                                                                                                      | `integration/listInstances.test.ts`                |
+| Default config → the by-name search goes to a **v5** path (FR-004, FR-017, SC-004)                                  | `case: the search is served by v5 on a v4-default deployment (003-FR-004, SC-004)`                                                                                                               | `integration/findCatalogueEntity.test.ts`          |
+| `GMA_CATALOGUE_GENERATION=v5` → every operation goes to v5 (FR-013, Story 3 scenario 2)                             | `case: GMA_CATALOGUE_GENERATION=v5 routes every operation to v5 (003-FR-013, SC-005, Story 3 scenario 2)`                                                                                        | `integration/listInstances.test.ts`                |
+| Unset vs `v4` → identical routing (FR-013, Story 3 scenario 1)                                                      | `case: unset and v4 produce identical routing (FR-013, Story 3 scenario 1)`                                                                                                                      | `unit/surface.test.ts`                             |
+| `v6`, `V4`, empty-after-trim → startup fails naming the variable (FR-014, SC-006)                                   | `case: GMA_CATALOGUE_GENERATION defaults to v4 and rejects anything else (003-FR-013, FR-014)`                                                                                                   | `unit/config.test.ts`                              |
+| `searchByName` pin removed on a v4 default → **startup** fails naming capability + operation + generations (FR-006) | `case: an unsatisfiable pin fails resolution naming capability, operation and generations (FR-006)`, `case: an unsatisfiable generation is a config error only an operator can fix (003-FR-006)` | `unit/surface.test.ts`, `unit/errors.test.ts`      |
+| Pin honoured on a v5-default deployment as a no-op (Story 4 scenario 3)                                             | `case: a pin matching the deployment default is a no-op, not a conflict (Story 4 scenario 3)`                                                                                                    | `unit/surface.test.ts`                             |
+| A capability spanning both generations aggregates completeness identically (FR-018, SC-008)                         | `case: one tool call spanning v5 search and v4 children aggregates completeness identically to a single-generation traversal (003-FR-009, FR-018, SC-008)`                                       | `integration/findCatalogueEntity.test.ts`          |
+| Each tool, each outcome, parameterised over **both** generations (FR-016, SC-003)                                   | `describe.each(BOTH_GENERATIONS)` wrapping every outcome case in all three tool suites plus the client suite                                                                                     | all 3 tool suites, `integration/gmaClient.test.ts` |
+| `generation` present in the log line for every upstream call (FR-015, SC-009)                                       | `case: generation is allowlisted and a token-bearing field still is not (003-FR-015, SC-006)`                                                                                                    | `unit/telemetry.test.ts`                           |
+| No tool input or output schema mentions a generation (FR-012)                                                       | `case: no tool schema, description, or output mentions a generation (003-FR-012)`                                                                                                                | `protocol/smoke.test.ts`                           |
+| Generation is never an agent argument (FR-013, Story 3 scenario 4)                                                  | `case: generation is never an agent-supplied argument (003-FR-013, Story 3 scenario 4)`, plus the ignored-extra-argument test                                                                    | `protocol/smoke.test.ts`                           |
+| Availability table invariants — paths ⇔ availableOn, prefix matches its key                                         | `case: table invariants hold for every operation (data-model.md §3)`                                                                                                                             | `unit/surface.test.ts`                             |
+| `searchByName` exists only on v5, encoded as data (R1)                                                              | `case: searchByName exists only on v5 (research.md R1)`                                                                                                                                          | `unit/surface.test.ts`                             |
+| Resolution never returns a generation outside `availableOn`, and never retries (FR-002, FR-007)                     | `case: resolution never returns a generation outside availableOn, and never retries (FR-002, FR-007)`                                                                                            | `unit/surface.test.ts`                             |
+| An identifier obtained under one generation resolves under the other (edge case 2)                                  | asserted inside `case: the search is served by v5 on a v4-default deployment` — the v4 child hop uses the id the v5 search returned                                                              | `integration/findCatalogueEntity.test.ts`          |
+| Removing a pin moves an operation back to the default with no other change (edge case 8)                            | `case: removing a pin moves an operation back to the default without other change (spec edge case 8)`                                                                                            | `unit/surface.test.ts`                             |
+| A pinned operation is honoured while siblings follow the default (FR-005, SC-007)                                   | `case: a pinned operation is honoured while its siblings follow the default (FR-005, SC-007, Story 4 scenario 1)`                                                                                | `unit/surface.test.ts`                             |
+| Output equality across generations (FR-008, SC-002)                                                                 | `case: agent-facing payload is deeply equal on v4 and v5 (003-FR-008, SC-002)`                                                                                                                   | `integration/getCatalogueEntity.test.ts`           |
+| **`subclassEventTypes` children read from `entities[]`**                                                            | **`case: subclass children are read from entities[] (R8 defect 1)`**                                                                                                                             | `integration/findCatalogueEntity.test.ts`          |
+| **Ancestry derived from flat `superclassId`/`subclassId` scalars**                                                  | **`case: ancestry is derived from flat scalars, not nested objects (R8 defect 2, 001-FR-014)`**                                                                                                  | `integration/getCatalogueEntity.test.ts`           |
+| Missing or blank ancestry scalars → shorter chain, never a fabricated ancestor (R8)                                 | `case: ancestry is derived from flat scalars …` → "yields a SHORTER chain on a blank scalar"                                                                                                     | `integration/getCatalogueEntity.test.ts`           |
+
+### What no automated test here can establish
+
+Both R8 rows are covered only against **hand-crafted** fixtures and inline bodies written from
+GMA's OpenAPI schema. If that reading of the schema is wrong, every test above still passes. That
+gap is closed by 003 quickstart **Validation 4c**, which is a **required** pre-release step: one
+real subclass must return non-empty `children`, and one real event type must return two-deep
+`ancestors`. An empty result there means the correction is wrong, not that the test is flaky.
+
+The same applies to the shared-fixture decision: that v4 and v5 declare these shapes identically
+is a dated manual verification (research R2, re-checked by Validation 5), because CI cannot reach
+`../gma-service` and vendoring a copy would go stale.
 
 ## Fixture coverage
 
