@@ -1,6 +1,81 @@
 <!--
 SYNC IMPACT REPORT
-Version change: 1.0.1 → 1.0.2
+Version change: 1.0.2 → 1.1.0
+Rationale: MINOR. The "v1 API surface" constraint named a single catalogue generation
+("the v5 catalogue API") and listed v5 paths explicitly. Upstream publishes TWO current
+catalogue generations, v4 and v5, and feature 003 makes v4 the default. That constraint
+therefore had to be generalised before any of that feature's code could merge —
+governance states this constitution wins over an implementation plan, so amending it is
+a prerequisite, not a follow-up.
+
+MINOR vs MAJOR — stated explicitly so the maintainer settles it rather than inheriting
+an assumption:
+
+  The case for MINOR (taken here): the versioning policy scopes MAJOR to a PRINCIPLE
+  being removed or redefined. No principle is removed or redefined by this amendment.
+  Every rule in Principles I-V survives verbatim; what changes is a Technology &
+  Platform Constraints entry, plus wording in three places that described a
+  surface-general fact in v5-specific terms. Guidance is materially expanded (the
+  default generation, the prohibition on fallback, the startup-check requirement, the
+  shared-fixture rule), which is the definition of MINOR.
+
+  The case for MAJOR a maintainer could reasonably make: code that was compliant with
+  the old sentence — every catalogue call pinned to a v5 path — is NOT compliant with
+  the new one, which makes v4 the default. That is the "previously compliant code
+  becomes non-compliant" test, and it is met in substance even though no principle
+  moved. A maintainer who reads that test as governing the whole document rather than
+  only its principles should re-tag this as 2.0.0; nothing else in the amendment
+  changes.
+
+Modified sections (1.1.0):
+  - Technology & Platform Constraints — "v1 API surface" generalised to name both
+    catalogue generations, with v4 as the default and v5 reached only by declared
+    per-operation requirement checked at startup; fallback between generations
+    explicitly prohibited; recorded that v4 carries zero `deprecated: true` operations
+    and is documented upstream as current, so defaulting to it satisfies Principle IV.
+  - "Deployed GMA partial-failure contract" — retitled and reworded to state that every
+    verified fact holds identically on v4 and v5, citing the 2026-09-07 per-operation
+    verification alongside the original 2026-09-03 v5 reading.
+  - Development Workflow & Quality Gates — fixture-library gate's outcome set is no
+    longer described as belonging to "the v5 catalogue surface"; added that one fixture
+    body MAY serve two generations only when the double is bound per generation and the
+    shape-identity claim is dated and re-verified; added that recording hand-crafted
+    provenance does NOT license contradicting the OpenAPI schema, and that the schema
+    wins when they disagree.
+
+Modified principles (1.1.0):
+  - II. Mandatory Completeness Caveat — wording only, no rule change: the HTTP-status
+    signal and the `complete`-requires-200 rule are stated as surface-general (both
+    generations) rather than v5-specific.
+  - IV. Curated Task-Oriented Tools — wording only: too-broad derivation notes neither
+    generation reports it, rather than naming v5.
+
+Added sections (1.1.0): none. Removed sections (1.1.0): none.
+
+Templates & commands: no changes required.
+
+Verified 2026-09-07 against ../gma-service/gma-api/src/main/resources/static:
+  - api_catalogue_v4.yaml declares version 4.0.0, 14 paths; api_catalogue.yaml declares
+    5.0.0, 22 paths. Both are served and auth-exempted (SecurityFilterFactory.java).
+  - `grep -c "deprecated: true"` is 0 on both files.
+  - `searchByName` has ZERO case-insensitive occurrences in api_catalogue_v4.yaml; v5
+    has POST /v5/searchByName. This is the single fact that shapes feature 003.
+  - Per-operation declared status sets are identical across generations for every
+    operation this project uses (200/206/400/401/404/500; /instances omits 400 and 404
+    on both).
+  - `EntitiesResponse` is `{ entities: Entity[] }` on both. `Subclass` carries flat
+    `superclassId`/`superclassName`; `EventType` adds flat `subclassId`/`subclassName`.
+    Neither generation nests a parent object. `instancesList` is a query parameter with
+    byte-identical definitions; only `POST /v5/searchByName` takes it in the body.
+
+History:
+  - 1.0.0 initial ratification (previous file was the unpopulated scaffold).
+  - 1.0.1 PATCH: deployed GMA auth configuration verified against sbv2_gmafd_chef,
+    correcting the issuer and GAHS claims and Principle I's rationale.
+  - 1.0.2 PATCH: HTTP-status partial-failure contract (see below).
+  - 1.1.0 MINOR: this amendment (see above).
+
+--- Sync Impact Report for 1.0.2, retained ---
 Rationale: PATCH. Principle II's outcome mapping was written from the design plan's
 description of a `status.code` envelope. Reading the actual v5 catalogue OpenAPI spec
 showed that surface signals partial success by HTTP status instead. The principle's
@@ -9,12 +84,7 @@ verdict, `complete` still requires unqualified success, multi-hop aggregation is
 required. Only the upstream signal being mapped is corrected, so no previously
 compliant code becomes non-compliant. Also defers the Prefab scaffold obligation while
 development is local-only.
-
-History:
-  - 1.0.0 initial ratification (previous file was the unpopulated scaffold).
-  - 1.0.1 PATCH: deployed GMA auth configuration verified against sbv2_gmafd_chef,
-    correcting the issuer and GAHS claims and Principle I's rationale.
-  - 1.0.2 PATCH: this amendment (see below).
+(History for every version is consolidated in the 1.1.0 report above.)
 
 Modified principles (1.0.2):
   - II. Mandatory Completeness Caveat — mapping table re-keyed from `status.code`
@@ -144,14 +214,15 @@ Partial data MUST NEVER be presentable as complete.
 - Every tool result MUST carry `completeness` as a structured, top-level field. It
   MUST NOT be prose-only and MUST NOT be omitted, including on full success.
 - `complete` MUST be `true` only when every hop reported unqualified success
-  (HTTP `200` on the v5 catalogue surface).
+  (HTTP `200` on the GMA catalogue surface — identically on both generations).
 - A tool making N GMA calls MUST merge every hop: `complete` is the AND of all hops;
   the reported outcome is the worst hop outcome by precedence
   `TIMEOUT_PARTIAL` > `TOO_BROAD` > `PARTIAL` > `COMPLETE`;
   `failedInstances` and `errors` are the union across hops.
 - GMA outcome → MCP outcome mapping is fixed and MUST be implemented in exactly one
-  place. On the **v5 catalogue surface** the upstream signal is the **HTTP status
-  code**, not a body field (see "Deployed GMA partial-failure contract" below):
+  place. On the **GMA catalogue surface** the upstream signal is the **HTTP status
+  code**, not a body field — and this holds identically on **both** the v4 and v5
+  generations (see "Deployed GMA partial-failure contract" below):
 
   | GMA outcome | MCP outcome |
   |---|---|
@@ -210,8 +281,8 @@ The tool surface is hand-curated for the model, never generated from GMA's API.
   the candidates. Auto-picking from more than one plausible match is prohibited.
 - A **too-broad** query MUST return no resolution plus a hint naming the field to
   narrow by. Too-broad MAY be determined by the upstream system where it reports one,
-  or derived by the tool from result cardinality where it does not (the v5 catalogue
-  surface does not report it).
+  or derived by the tool from result cardinality where it does not (neither generation
+  of the GMA catalogue surface reports it).
 - Tool input and output schemas MUST be clean, LLM-facing definitions. GMA DTOs,
   HTTP shapes, and envelope internals MUST NOT leak into a tool schema.
 - Operational values MUST NOT be tool arguments — see Principle V.
@@ -256,10 +327,26 @@ configuration boundaries, not by care.
 - **GMA integration**: HTTP only, as an ordinary consumer of the BFF, exactly as the
   front-end is. This server MUST NOT be built into or deployed as part of GMA, and
   MUST NOT require a GMA code change.
-- **v1 API surface**: the v5 catalogue API (`api_catalogue.yaml`) — `GET /v5/instances`,
-  `POST /v5/searchByName`, `GET /v5/{superclasses|subclasses|eventTypes}/{id}`,
-  `GET /v5/subclasses/{id}/eventTypes`, `GET /v5/eventTypes/{id}/events`. The
-  deprecated `search.yaml` market operations MUST NOT be used.
+- **v1 API surface**: the GMA catalogue API, which upstream publishes as **two current
+  generations** — **v4** (`api_catalogue_v4.yaml`) and **v5** (`api_catalogue.yaml`).
+  The operations this project depends on are `GET /{v}/instances`,
+  `GET /{v}/{superclasses|subclasses|eventTypes}/{id}`, and
+  `GET /{v}/subclasses/{id}/eventTypes`, which **both** generations offer, plus
+  `POST /v5/searchByName`, which **only v5** offers.
+
+  **v4 is the default generation**; v5 is reached only where a capability declares a
+  per-operation requirement for it, checked at startup. A tool MUST NOT reach a
+  non-default generation by attempting one and falling back to the other: an operation
+  a capability needs on a generation that does not offer it is a startup failure, not a
+  runtime recovery.
+
+  Defaulting to v4 satisfies Principle IV's prohibition on deprecated endpoints: **v4
+  carries zero `deprecated: true` operations** and upstream's own README documents it as
+  current alongside v5 (verified 2026-09-07). "Prefer the newer generation" is the
+  intuition a reviewer arrives with, and here the upstream project itself treats both as
+  current, so it does not apply.
+
+  The deprecated `search.yaml` market operations MUST NOT be used, on either generation.
 - **v1 tool surface**: exactly three tools — `list_instances`,
   `find_catalogue_entity`, `get_catalogue_entity`. Expanding the surface is
   governed by Principle IV, not by convenience.
@@ -280,26 +367,31 @@ configuration boundaries, not by care.
   endpoint MUST exist. Traces MUST export to the shared collector, with dashboards
   and alerts keyed by tool name and upstream outcome.
 
-### Deployed GMA partial-failure contract (verified 2026-09-03)
+### Deployed GMA partial-failure contract, both catalogue generations (v5 verified 2026-09-03; v4 verified identical 2026-09-07)
 
-Verified by reading `gma-api/src/main/resources/static/api_catalogue.yaml`. Recorded
-because the design plan (`docs/gma-mcp-server-plan.md`) described a different contract,
-and Principle II was originally written from that description.
+Verified by reading `gma-api/src/main/resources/static/api_catalogue.yaml` (v5) and
+`api_catalogue_v4.yaml` (v4). Recorded because the design plan
+(`docs/gma-mcp-server-plan.md`) described a different contract, and Principle II was
+originally written from that description.
+
+**Every fact below holds identically on v4 and v5.** The counts differ only because v5
+declares more operations in total; on each operation the two generations depend on, the
+declared status set is the same. Verified operation by operation on 2026-09-07.
 
 | Fact | Value |
 |---|---|
-| Partial success signal | HTTP **`206`** (declared on 28 v5 operations) |
-| Full success | HTTP `200` (30 operations) |
-| Other declared statuses | `400` (28), `401` (30), `404` (27), `500` (30) |
+| Partial success signal | HTTP **`206`** (declared on 28 v5 operations; on every v4 operation this project uses) |
+| Full success | HTTP `200` (30 v5 operations; every v4 operation this project uses) |
+| Other declared statuses | `400`, `401`, `404`, `500` — same sets per operation on both generations |
 | Instance fields | `successfulConfigSources` / `failedConfigSources` |
 | Per-instance error | `Error { configSource, message }` |
-| `status.code` envelope | **absent from v5** — `api_catalogue.yaml` has zero references to `common.yaml` |
-| `TOO_MANY_EVENTS` / `REQUEST_TIMEOUT` | **not present on v5**; they belong to the older `api.yaml` family |
+| `status.code` envelope | **absent from both generations** — neither catalogue spec references `common.yaml` |
+| `TOO_MANY_EVENTS` / `REQUEST_TIMEOUT` | **not present on either generation**; they belong to the older `api.yaml` family |
 
 Consequences that bind this project:
 
-- The v5 client MUST derive completeness from the **HTTP status code**, and MUST NOT
-  parse a `status.code` body field on that surface.
+- The catalogue client MUST derive completeness from the **HTTP status code** on both
+  generations, and MUST NOT parse a `status.code` body field on either.
 - Upstream `configSource` naming MUST be translated to the project's `instance`
   vocabulary at the client boundary, so tool-facing types stay consistent (Principle IV).
 - Too-broad MUST be derived from result cardinality on this surface (Principle IV).
@@ -345,13 +437,24 @@ Testing is fixture-driven and coverage-gated. Test-first is not mandated: tests 
 implementation MAY land in the same change.
 
 - **Fixture library (blocking)**: a fixture MUST exist for every distinguishable
-  upstream outcome, for every GMA operation a tool depends on. On the v5 catalogue
+  upstream outcome, for every GMA operation a tool depends on. On the GMA catalogue
   surface those outcomes are HTTP `200`, `206`, `400`, `401`, `404`, `500`, plus a
-  simulated transport timeout (which has no HTTP response at all). On a surface that
-  exposes a `status.code` envelope, they are that envelope's codes. A tool MUST NOT
-  ship without its fixtures. Hand-crafting a fixture from the OpenAPI schema is
-  acceptable when the real response cannot be captured; the fixture MUST record that
-  it was hand-crafted.
+  simulated transport timeout (which has no HTTP response at all) — the same set on
+  both generations. On a surface that exposes a `status.code` envelope, they are that
+  envelope's codes. A tool MUST NOT ship without its fixtures.
+
+  Where two generations declare a response **shape-identically**, one fixture body MAY
+  serve both, provided the test double is bound **per generation** so each run asserts
+  the request reached that generation's own path. Shape identity is a claim about
+  upstream that MUST be recorded with a verification date and re-verified before any
+  release that changes which generation a capability consults.
+
+  Hand-crafting a fixture from the OpenAPI schema is acceptable when the real response
+  cannot be captured; the fixture MUST record that it was hand-crafted. **Recording
+  that provenance does not license contradicting the schema**: where a hand-crafted
+  fixture and the OpenAPI schema disagree, the schema is authoritative and the fixture
+  is a defect — including when the implementation agrees with the fixture, which is
+  precisely the case a green suite cannot detect.
 - **Must-cover cases (blocking)**: single-match auto-resolve; multi-match candidates;
   zero-match; partial-success caveat surfaced at top level; too-broad → narrow hint;
   multi-hop aggregation where one partial hop flags the whole result; argument error
@@ -407,4 +510,4 @@ governing document.
 - `AGENTS.md` / `CLAUDE.md` in this repository carry runtime development guidance and
   MUST NOT contradict this constitution.
 
-**Version**: 1.0.2 | **Ratified**: 2026-09-03 | **Last Amended**: 2026-09-03
+**Version**: 1.1.0 | **Ratified**: 2026-09-03 | **Last Amended**: 2026-09-07
