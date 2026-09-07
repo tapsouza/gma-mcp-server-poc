@@ -15,6 +15,10 @@
     "dev": "npm run build && node dist/index.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "build:agent": "tsc -p agent/tsconfig.json",
+    "agent": "npm run build && npm run build:agent && node dist-agent/main.js",
+    "test:agent": "npm run build && npm run build:agent && vitest run -c agent/vitest.config.ts",
+    "test:all": "npm test && npm run test:agent",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write ."
   },
@@ -25,9 +29,12 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@ai-sdk/amazon-bedrock": "^5.0.76",
+    "@ai-sdk/mcp": "^2.0.45",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.4.1",
     "@vitest/coverage-v8": "^5.0.0",
+    "ai": "^7.0.93",
     "eslint": "^10.9.1",
     "msw": "^2.15.0",
     "prettier": "^3.9.6",

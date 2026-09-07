@@ -5,7 +5,7 @@ import moduleBoundaries from './eslint-rules/module-boundaries.js';
 export default tseslint.config(
   {
     // Build artefacts, coverage, and dependencies are never linted.
-    ignores: ['dist/**', 'coverage/**', 'node_modules/**', '.idea/**']
+    ignores: ['dist/**', 'dist-agent/**', 'coverage/**', 'node_modules/**', '.idea/**']
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

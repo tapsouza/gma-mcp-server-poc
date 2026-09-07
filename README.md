@@ -88,6 +88,45 @@ than fail at the first request.
 | `LOG_LEVEL`             | no         | `info`  | `debug` \| `info` \| `warn` \| `error`                                                                                                |
 | `GMA_USER_TOKEN`        | stdio only | —       | The operator's token. stdio has no HTTP request to carry a bearer, so it comes from the environment — **development only**            |
 
+## Trying it with an agent
+
+`npm run agent` starts a local conversational harness that spawns this server over stdio,
+discovers its three capabilities at runtime, and drives them with a Bedrock-hosted model. Ask a
+question in English and watch which capability the model chose and what arguments it passed.
+
+```bash
+npm run agent              # ask questions; /help lists the commands
+npm run agent -- --verbose # additionally echo the server's own diagnostics live
+```
+
+It needs the three server variables above, plus `AWS_REGION` and AWS credentials with access to at
+least one Bedrock Claude model. Either paste a token into `GMA_USER_TOKEN` or set `OKTA_CLIENT_ID`
+and sign in from the terminal by opening a link. `AGENT_MODEL_ID` overrides the model when the
+default is not one the AWS account can invoke. `.env.example` documents all of them.
+
+```bash
+npm run test:agent  # the harness's own suites (builds dist/ first — it spawns a real child)
+npm run test:all    # both suites
+```
+
+**Why it exists.** `test/protocol/smoke.test.ts` proves a tool _result_ carries its `completeness`
+verdict. It cannot prove that a real model, reading the real tool descriptions, **relays that
+caveat to a human** or **declines to choose between ambiguous candidates**. Those are properties of
+the final natural-language turn, and the harness is the only thing that exercises them. Its system
+prompt is deliberately minimal and says nothing about caveats or candidates, so what gets measured
+is the adequacy of _this server's_ tool descriptions rather than the harness's coaching.
+
+Both verifications are **manual** — a real model is non-deterministic, costs tokens per run, and
+would need AWS credentials in CI, the same reasons live GMA stays out of the suite. The procedure
+is in
+[`specs/002-local-cli-agent/quickstart.md`](./specs/002-local-cli-agent/quickstart.md). If either
+fails, that is a finding about the tool descriptions under `src/domains/catalogue/**` — **not** a
+reason to add caveat instructions to the harness prompt, which would make the output look correct
+while hiding an inadequacy a third-party agent would hit in production.
+
+The harness lives in `agent/`, **outside** the constitutional gates that govern `src/` — see
+[_Scope of this slice_](#scope-of-this-slice--read-before-extending).
+
 ## Testing
 
 ```bash
@@ -157,6 +196,10 @@ Deliberately **out of scope**, each deferred with a reason recorded in the spec:
   configuration exercise rather than a rewrite.
 - **Traversal deeper than one level**, and **any fourth tool**. Expanding the surface is governed
   by the constitution's Principle IV, not by convenience.
+- **The `agent/` harness is a local development tool, not part of the delivered service.** It lives
+  outside the source tree the architecture and coverage gates govern, is never deployed, and none
+  of its dependencies ship: nothing in `agent/` carries the guarantees `src/` does, and the
+  server's own `npm test` and its coverage thresholds are unchanged by it.
 
 ### One thing to be precise about
 

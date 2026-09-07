@@ -7,8 +7,13 @@
 # Node
 node_modules/
 dist/
+dist-agent/
 coverage/
 *.tsbuildinfo
+
+# Local agent harness credential cache — lives in $HOME, never here, but ignored
+# so a stray copy in the working tree cannot be committed (FR-020).
+.gma-agent/
 
 # Local configuration — never commit real hosts or tokens
 .env
