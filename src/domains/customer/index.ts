@@ -8,11 +8,14 @@ import type { Logger } from '../../core/telemetry.js';
 import {
   findCustomerBetsInputSchema,
   findCustomerBetsOutputSchema,
+  getBetRiskContextInputSchema,
+  getBetRiskContextOutputSchema,
   getCustomerRiskProfileInputSchema,
   getCustomerRiskProfileOutputSchema,
   listJurisdictionContextsOutputSchema
 } from './schemas.js';
 import { FIND_CUSTOMER_BETS_DESCRIPTION, findCustomerBets } from './tools/findCustomerBets.js';
+import { GET_BET_RISK_CONTEXT_DESCRIPTION, getBetRiskContext } from './tools/getBetRiskContext.js';
 import {
   GET_CUSTOMER_RISK_PROFILE_DESCRIPTION,
   getCustomerRiskProfile
@@ -245,6 +248,73 @@ export function registerCustomerDomain(server: McpServer, deps: DomainDeps): voi
       } catch (error) {
         logger.error({
           tool: 'find_customer_bets',
+          errorKind: isToolError(error) ? error.kind : 'upstream',
+          latencyMs: Date.now() - startedAt,
+          event: 'tool.error'
+        });
+        return toErrorResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    'get_bet_risk_context',
+    {
+      title: 'Get the risk context behind one bet',
+      description: GET_BET_RISK_CONTEXT_DESCRIPTION,
+      inputSchema: getBetRiskContextInputSchema,
+      outputSchema: getBetRiskContextOutputSchema,
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async (args, extra) => {
+      const startedAt = Date.now();
+      try {
+        const token = extractOperatorToken(extra as RequestIdentitySource);
+        const result = await getBetRiskContext(
+          { client, maxEventResolutions: config.customerMaxEventResolutions },
+          token,
+          { betId: args.betId, receiptId: args.receiptId }
+        );
+
+        logger.info({
+          tool: 'get_bet_risk_context',
+          // The MATCH OUTCOME, which is a mechanism rather than a customer datum — and
+          // the field an operator would actually key an alert on. If this ever reads
+          // `jurisdictionNotMatched` for every call, the matching is broken.
+          resolution: result.jurisdictionMatch ?? 'candidates',
+          matchCount: result.candidates?.length ?? 1,
+          // A COUNT of legs, never a leg's contents.
+          instanceCount: result.resolvedLegs?.length ?? 0,
+          aggregateOutcome: result.completeness.outcome,
+          latencyMs: Date.now() - startedAt,
+          event: 'tool.success'
+        });
+
+        return toSuccessResult({
+          ...(result.bet === undefined ? {} : { bet: result.bet }),
+          ...(result.jurisdictionMatch === undefined
+            ? {}
+            : { jurisdictionMatch: result.jurisdictionMatch }),
+          ...(result.governingJurisdiction === undefined
+            ? {}
+            : { governingJurisdiction: result.governingJurisdiction }),
+          ...(result.allJurisdictionConfigurations === undefined
+            ? {}
+            : { allJurisdictionConfigurations: result.allJurisdictionConfigurations }),
+          ...(result.resolvedLegs === undefined ? {} : { resolvedLegs: result.resolvedLegs }),
+          ...(result.agreement === undefined ? {} : { agreement: result.agreement }),
+          ...(result.appliedFiguresAreBetLevel === undefined
+            ? {}
+            : { appliedFiguresAreBetLevel: result.appliedFiguresAreBetLevel }),
+          ...(result.attributionNotice === undefined
+            ? {}
+            : { attributionNotice: result.attributionNotice }),
+          ...(result.candidates === undefined ? {} : { candidates: result.candidates }),
+          completeness: result.completeness
+        });
+      } catch (error) {
+        logger.error({
+          tool: 'get_bet_risk_context',
           errorKind: isToolError(error) ? error.kind : 'upstream',
           latencyMs: Date.now() - startedAt,
           event: 'tool.error'

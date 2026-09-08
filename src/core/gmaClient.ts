@@ -44,6 +44,23 @@ export interface GmaCallOptions {
   readonly pathTemplate?: string | undefined;
   /** Instance URNs to scope the query to, already resolved by `instances.ts`. */
   readonly instances?: readonly string[] | undefined;
+  /**
+   * The QUERY PARAMETER NAME the target operation declares for its instance list.
+   *
+   * The v5 surface is NOT uniform about this: most operations declare
+   * `instancesList`, but `GET /v5/events/{id}` declares `sources` — verified in
+   * `api_catalogue.yaml`, whose `getEventById` references `sourcesParam` while
+   * `searchMarketByInstancesAndEventId` on the adjacent path references
+   * `instancesList`. The constitution records the rule directly: "Per-operation
+   * parameter names MUST NOT be assumed uniform … a client MUST carry the name per
+   * call rather than hardcoding one globally."
+   *
+   * Defaults to `instancesList`, so every existing catalogue call is unchanged.
+   * Sending the wrong name would not error — the parameter would simply be IGNORED,
+   * and the call would silently fan out across every instance instead of the one
+   * asked for. That is the confident-failure shape this option exists to prevent.
+   */
+  readonly instancesParam?: 'instancesList' | 'sources' | undefined;
   /** Caller's cancellation signal, composed with the configured timeout. */
   readonly signal?: AbortSignal | undefined;
   /** Which hop of a multi-hop tool this is, for logging only. */
@@ -67,13 +84,17 @@ export interface GmaClient {
 }
 
 /**
- * The instance query parameter for GET operations.
+ * The DEFAULT instance query parameter for GET operations.
  *
  * Note the asymmetry research.md R3 records: GET operations take `instancesList` as a
  * QUERY PARAMETER, while `POST /v5/searchByName` takes it in the REQUEST BODY. Both
  * are handled, and the difference is confined to this file.
+ *
+ * And note the second asymmetry, which R3 did not record: `GET /v5/events/{id}`
+ * declares the parameter as `sources`, not `instancesList`. That is why the name is
+ * overridable per call via `instancesParam` rather than fixed here.
  */
-const INSTANCES_PARAM = 'instancesList';
+const DEFAULT_INSTANCES_PARAM = 'instancesList';
 
 /**
  * A stable operation label for logs and errors — never a URL, which could carry a
@@ -108,8 +129,9 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
     const url = new URL(`${config.gmaBaseUrl}${path}`);
 
     if (method === 'GET' && options.instances !== undefined) {
+      const parameterName = options.instancesParam ?? DEFAULT_INSTANCES_PARAM;
       for (const instance of options.instances) {
-        url.searchParams.append(INSTANCES_PARAM, instance);
+        url.searchParams.append(parameterName, instance);
       }
     }
 

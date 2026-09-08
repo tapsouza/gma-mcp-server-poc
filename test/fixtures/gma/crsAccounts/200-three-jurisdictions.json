@@ -35,7 +35,7 @@
       "hierarchyGroups": [
         {
           "entityType": "SUPERCLASS",
-          "entityId": "urn:sc:football",
+          "entityId": "3",
           "stakeFactor": 0.25,
           "liabilityGroup": {
             "code": "LG5",
@@ -48,7 +48,7 @@
             "entities": [
               {
                 "entityType": "SUPERCLASS",
-                "entityId": "urn:sc:football",
+                "entityId": "3",
                 "entityName": "Football"
               }
             ]
@@ -56,7 +56,7 @@
         },
         {
           "entityType": "SUBCLASS",
-          "entityId": "urn:sub:premier-league",
+          "entityId": "7",
           "stakeFactor": 0.1,
           "liabilityGroup": {
             "code": "LG6",
@@ -69,12 +69,12 @@
             "entities": [
               {
                 "entityType": "SUBCLASS",
-                "entityId": "urn:sub:premier-league",
+                "entityId": "7",
                 "entityName": "Premier League"
               },
               {
                 "entityType": "SUPERCLASS",
-                "entityId": "urn:sc:football",
+                "entityId": "3",
                 "entityName": "Football"
               }
             ]
@@ -82,7 +82,7 @@
         },
         {
           "entityType": "EVENT_TYPE",
-          "entityId": "urn:et:match-winner",
+          "entityId": "3307",
           "stakeFactor": 0.05,
           "liabilityGroup": {
             "code": "LG7",
@@ -95,17 +95,17 @@
             "entities": [
               {
                 "entityType": "EVENT_TYPE",
-                "entityId": "urn:et:match-winner",
+                "entityId": "3307",
                 "entityName": "Match Winner"
               },
               {
                 "entityType": "SUBCLASS",
-                "entityId": "urn:sub:premier-league",
+                "entityId": "7",
                 "entityName": "Premier League"
               },
               {
                 "entityType": "SUPERCLASS",
-                "entityId": "urn:sc:football",
+                "entityId": "3",
                 "entityName": "Football"
               }
             ]
@@ -113,7 +113,7 @@
         },
         {
           "entityType": "MARKET_TYPE",
-          "entityId": "urn:mt:correct-score",
+          "entityId": "507531",
           "stakeFactor": 0.02,
           "liabilityGroup": {
             "code": "LG8",
@@ -126,22 +126,22 @@
             "entities": [
               {
                 "entityType": "MARKET_TYPE",
-                "entityId": "urn:mt:correct-score",
+                "entityId": "507531",
                 "entityName": "Correct Score"
               },
               {
                 "entityType": "EVENT_TYPE",
-                "entityId": "urn:et:match-winner",
+                "entityId": "3307",
                 "entityName": "Match Winner"
               },
               {
                 "entityType": "SUBCLASS",
-                "entityId": "urn:sub:premier-league",
+                "entityId": "7",
                 "entityName": "Premier League"
               },
               {
                 "entityType": "SUPERCLASS",
-                "entityId": "urn:sc:football",
+                "entityId": "3",
                 "entityName": "Football"
               }
             ]

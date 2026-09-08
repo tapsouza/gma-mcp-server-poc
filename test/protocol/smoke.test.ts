@@ -60,6 +60,7 @@ describe('MCP protocol smoke', () => {
       expect(tools.map((t) => t.name).sort()).toEqual([
         'find_catalogue_entity',
         'find_customer_bets',
+        'get_bet_risk_context',
         'get_catalogue_entity',
         'get_customer_risk_profile',
         'list_instances',

@@ -25,6 +25,31 @@ import type { AppliedRiskFigures, Bet, BetLeg, NamedEntity, WagerAmounts } from 
 /** Which `entityIds` member supplied a leg's identifier. A field LEVEL, never a value. */
 export type EntityIdSource = 'rampId' | 'gbpId';
 
+/**
+ * The v5 event URN prefix, from the only observed bridge (R9).
+ *
+ * `gbpbmui-tool/src/constants/urnPrefixes.ts:2` — `URN_PREFIXES.EVENT` — applied to a
+ * leg's `rampId` at `linkManager.ts:88`.
+ */
+const EVENT_URN_PREFIX = 'urn:sbk:pc:e:gpd:';
+
+/**
+ * A leg's event identifier in the form `GET /v5/events/{id}` expects.
+ *
+ * R9's assumption is `rampId` **prefixed**, not the bare value: the front-end reads
+ * `event.entityIds.rampId` (`linkManager.ts:51`) and then prefixes it
+ * (`:88`). Sending the bare `9201` would 404 every leg — and because an unresolvable leg
+ * is reported as `notResolvedIdentifierUnusable`, the symptom would look exactly like R9
+ * being wrong rather than like this transformation being missing. That is the confident
+ * failure this function exists to prevent.
+ *
+ * Idempotent: a value already in URN form is returned unchanged, so an upstream that
+ * starts sending URNs does not break the hop.
+ */
+export function toEventLookupId(eventId: string): string {
+  return eventId.startsWith('urn:') ? eventId : `${EVENT_URN_PREFIX}${eventId}`;
+}
+
 /** The subset of `POST /qbs/graphql`'s `Bet` this mapper reads. Upstream vocabulary. */
 export interface QbsSearchBetsResponse {
   readonly data?: {

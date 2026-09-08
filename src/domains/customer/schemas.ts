@@ -417,3 +417,141 @@ export type BetLeg = z.infer<typeof betLegSchema>;
 export type AppliedRiskFigures = z.infer<typeof appliedRiskFiguresSchema>;
 export type WagerAmounts = z.infer<typeof wagerAmountsSchema>;
 export type Bet = z.infer<typeof betSchema>;
+
+/**
+ * Why a leg's catalogue position is or is not known (data-model.md section 7).
+ *
+ * The two `notResolved…` values are kept separate deliberately: one is an upstream
+ * failure, the other is this server's own identifier assumption being wrong. Folding
+ * them would hide a systematic defect behind a generic error (Principle IV).
+ */
+export const legResolutionOutcomeSchema = z
+  .enum([
+    'resolved',
+    'notResolvedUpstreamFailure',
+    'notResolvedIdentifierUnusable',
+    'notAttemptedBoundReached'
+  ])
+  .describe(
+    'resolved: the position is known and overridesInScope is meaningful. notResolvedUpstreamFailure: the event lookup failed. notResolvedIdentifierUnusable: the bet carried no usable event identifier. notAttemptedBoundReached: the configured resolution limit was reached before this leg. For every value EXCEPT "resolved", nothing is known about this leg\'s restrictions.'
+  );
+
+/** One leg with its resolved catalogue position (data-model.md section 7). */
+export const resolvedLegSchema = z
+  .object({
+    legNumber: z.number(),
+    leg: betLegSchema,
+    cataloguePath: z
+      .array(cataloguePathNodeSchema)
+      .nullable()
+      .describe(
+        'The risk-side catalogue path for this leg, broadest first; null when the leg is unresolved.'
+      ),
+    overridesInScope: z
+      .array(hierarchyOverrideSchema)
+      .describe(
+        'Every override covering this leg\'s position. An override covering several legs appears on EACH of them. An EMPTY list means "no override covers this position" ONLY when resolution is "resolved" — on an unresolved leg it means NOTHING IS KNOWN, and must never be read as unrestricted.'
+      ),
+    // MANDATORY, not optional. It is the only thing distinguishing "no override
+    // covers this leg" from "we could not find out", and those are opposite facts.
+    resolution: legResolutionOutcomeSchema.describe(
+      'Read this BEFORE overridesInScope. Only "resolved" means the override list is a complete statement about this leg.'
+    ),
+    resolvedVia: z
+      .enum(['rampId', 'gbpId'])
+      .nullable()
+      .describe(
+        "Which identifier field on the bet produced this leg's event lookup; null when unresolved. Diagnostic: which field is the correct one is not confirmed upstream, so this states the assumption this result relied on."
+      )
+  })
+  .describe('One bet leg together with the risk settings in scope for its catalogue position.');
+
+/** FR-018's four outcomes — NOT a form of incompleteness (FR-027). */
+export const jurisdictionMatchOutcomeSchema = z
+  .enum([
+    'matched',
+    'noConfigurationForJurisdiction',
+    'jurisdictionNotMatched',
+    'jurisdictionUnknown'
+  ])
+  .describe(
+    'matched: one configuration governed this bet, named in governingJurisdiction. noConfigurationForJurisdiction: the jurisdiction is real and the customer has no settings for it — a FACT ABOUT THE CUSTOMER. jurisdictionNotMatched: the jurisdiction could not be matched at all — a FAILURE OF THIS TOOL\'S MATCHING, not a fact about the customer. jurisdictionUnknown: the bet reported no jurisdiction. In every case except "matched" you MUST NOT tell the user the customer was on default settings.'
+  );
+
+/** FR-020's three-valued comparison (data-model.md section 9). */
+export const agreementVerdictSchema = z
+  .object({
+    field: z.enum(['stakeFactor', 'liabilityGroup']),
+    verdict: z
+      .enum(['consistent', 'differs', 'notComparable'])
+      .describe(
+        'consistent: the configured and applied values agree. differs: they do not — report both, and do NOT explain why. notComparable: no comparison could be made; see reason.'
+      ),
+    configuredValue: z
+      .union([z.string(), z.number()])
+      .nullable()
+      .describe('Always shown, even when notComparable, so you can see what was compared.'),
+    appliedValue: z.union([z.string(), z.number()]).nullable(),
+    reason: z.string().nullable().describe('Why no comparison was possible; null otherwise.')
+  })
+  .describe(
+    'A comparison between one configured setting and its applied counterpart. It does NOT explain how the applied value was derived — that is not available to this system.'
+  );
+
+/** A bet reference, for the multi-match case (FR-022). */
+export const betRefSchema = z.object({
+  betId: z.string(),
+  receiptId: z.string().nullable(),
+  accountId: z.string(),
+  placedAt: z.string(),
+  status: z.string(),
+  betType: z.string()
+});
+
+/** Input of `get_bet_risk_context` — EXACTLY ONE of the two (FR-016). */
+export const getBetRiskContextInputSchema = {
+  betId: z.string().min(1).optional().describe("The bet's internal identifier."),
+  receiptId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The receipt reference a customer quotes. No conversion needed.')
+  // No jurisdiction argument: the bet reports its own, so everything is derived from
+  // the identifier (FR-016). And no instance — that is routing, not scoping.
+};
+
+/** Output of `get_bet_risk_context`. */
+export const getBetRiskContextOutputSchema = {
+  bet: betSchema.optional().describe('Absent only when the identifier matched several bets.'),
+  jurisdictionMatch: jurisdictionMatchOutcomeSchema.optional(),
+  governingJurisdiction: jurisdictionRefSchema
+    .optional()
+    .describe('Present ONLY when jurisdictionMatch is "matched".'),
+  allJurisdictionConfigurations: z
+    .array(customerRiskConfigurationSchema)
+    .optional()
+    .describe(
+      'EVERY configuration the customer has, always — including when the jurisdiction did not match. Their presence is NOT evidence that any of them governed this bet.'
+    ),
+  resolvedLegs: z.array(resolvedLegSchema).optional(),
+  agreement: z.array(agreementVerdictSchema).optional(),
+  appliedFiguresAreBetLevel: z
+    .boolean()
+    .optional()
+    .describe('True for a multi-leg bet, whose applied figures belong to the whole bet.'),
+  attributionNotice: z
+    .string()
+    .optional()
+    .describe('Present iff appliedFiguresAreBetLevel. Relay it verbatim.'),
+  candidates: z
+    .array(betRefSchema)
+    .optional()
+    .describe(
+      'Present iff the identifier matched more than one bet. When present, NO risk context was assembled — ask the user which bet they mean.'
+    ),
+  completeness: completenessSchema
+};
+
+export type LegResolutionOutcomeValue = z.infer<typeof legResolutionOutcomeSchema>;
+export type JurisdictionMatchValue = z.infer<typeof jurisdictionMatchOutcomeSchema>;
+export type BetRef = z.infer<typeof betRefSchema>;

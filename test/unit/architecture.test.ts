@@ -25,6 +25,29 @@ const files = walk(SRC).map((path) => ({
   source: readFileSync(path, 'utf8')
 }));
 
+/**
+ * Source with comments removed.
+ *
+ * Used only by the assertions that look for CODE shapes. These modules explain their own
+ * invariants at length — a doc comment saying a result is `complete: true` even when a
+ * jurisdiction is unresolved is documentation OF the rule, not a second place the verdict
+ * is constructed. Matching it would push an author to delete the rationale to satisfy the
+ * guard, which is the wrong trade: the prose is why the next reader gets it right.
+ */
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+}
+
+/**
+ * A module DECIDING completeness: `complete:` set to a boolean literal.
+ *
+ * Deliberately narrow. Declaring the field — `readonly complete: boolean` in the type,
+ * `complete: z.boolean()` in a schema — is not deciding its value, and a shorthand
+ * (`{ complete, outcome }`) is a value derived elsewhere. Only a literal asserts a verdict
+ * the module has not earned, which is the thing Principle II confines to one place.
+ */
+const VERDICT_LITERAL = /complete:\s*(true|false)\b/;
+
 describe('architecture invariants', () => {
   it('has source files to inspect', () => {
     expect(files.length).toBeGreaterThan(10);
@@ -117,12 +140,38 @@ describe('architecture invariants', () => {
       }
     });
 
-    it('keeps completeness construction in exactly one module (Principle II)', () => {
-      // Every verdict must come from core/completeness.ts, so there is one place where
-      // `complete` is decided and one place to review when it changes.
-      const constructors = files.filter(({ source }) => /complete:\s*(true|false)/.test(source));
+    it('lets no module outside core/completeness.ts decide `complete` (Principle II)', () => {
+      // The invariant: one place decides whether a result is complete, so there is one
+      // place to review when the rule changes. Asserted as an ABSENCE elsewhere rather
+      // than a presence in the owning module — `completeness.ts` derives the value and
+      // passes it by shorthand, and a guard keyed to one spelling of the assignment
+      // stops describing the rule the moment that module is refactored.
+      //
+      // Comments are stripped: these modules explain their own invariants, and prose
+      // documenting the rule is not a second implementation of it. Matching prose would
+      // push an author to delete the rationale to satisfy the guard.
+      const offenders = files
+        .filter(({ path }) => path !== 'core/completeness.ts')
+        .filter(({ source }) => VERDICT_LITERAL.test(stripComments(source)))
+        .map((f) => f.path);
 
-      expect(constructors.map((f) => f.path)).toEqual(['core/completeness.ts']);
+      expect(offenders).toEqual([]);
+    });
+
+    it('guards the guard: it catches a real verdict and ignores mere declarations', () => {
+      // Without this, a bug in `stripComments` — or a pattern drawn too wide or too
+      // narrow — would silently disarm the assertion above, and nobody would learn until
+      // a second module started deciding completeness.
+      expect(VERDICT_LITERAL.test(stripComments('const v = { complete: true };'))).toBe(true);
+      expect(VERDICT_LITERAL.test(stripComments('return { complete: false };'))).toBe(true);
+
+      // Declaring the FIELD is not deciding its value: a type and a schema must both be
+      // able to name it, and only `completeness.ts` may state a literal.
+      expect(VERDICT_LITERAL.test(stripComments('readonly complete: boolean;'))).toBe(false);
+      expect(VERDICT_LITERAL.test(stripComments('complete: z.boolean()'))).toBe(false);
+      expect(VERDICT_LITERAL.test(stripComments('return { complete, outcome };'))).toBe(false);
+      expect(VERDICT_LITERAL.test(stripComments('// complete: true'))).toBe(false);
+      expect(VERDICT_LITERAL.test(stripComments('/** complete: false */'))).toBe(false);
     });
 
     it('keeps HTTP-status-to-error mapping in exactly one module (Principle II)', () => {
