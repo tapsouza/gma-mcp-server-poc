@@ -1,20 +1,63 @@
 <!--
 SYNC IMPACT REPORT
-Version change: 1.0.1 → 1.0.2
-Rationale: PATCH. Principle II's outcome mapping was written from the design plan's
-description of a `status.code` envelope. Reading the actual v5 catalogue OpenAPI spec
-showed that surface signals partial success by HTTP status instead. The principle's
-RULES are unchanged — every result still carries a mandatory structured completeness
-verdict, `complete` still requires unqualified success, multi-hop aggregation is still
-required. Only the upstream signal being mapped is corrected, so no previously
-compliant code becomes non-compliant. Also defers the Prefab scaffold obligation while
-development is local-only.
+Version change: 1.0.2 → 1.1.0
+Rationale: MINOR. Sections are materially expanded and new normative rules are added;
+nothing is removed and no previously compliant code becomes non-compliant. The
+motivating case is `specs/004-customer-bet-tools`, which the constitution as ratified
+forbade in three separate ways: the surface was fixed to the v5 catalogue API and the
+tool set to exactly three tools; Principle II's completeness model had one failure axis
+(which brand instances did not answer) and therefore no way to say "every source
+answered but a section of this composite answer is missing"; and the outcome mapping had
+no row for an upstream response that succeeds while reporting errors inside itself, nor
+for authenticated-but-unauthorised.
+
+The migration path for existing code is additive. `Completeness` gains a second
+collection which is empty for every current catalogue call, so `complete` keeps its
+present value everywhere; `ErrorKind` gains a member no existing mapping produces. The
+catalogue domain's behaviour is unchanged and its tests MUST pass unmodified — that is
+the acceptance condition for this amendment (see Development Workflow).
 
 History:
   - 1.0.0 initial ratification (previous file was the unpopulated scaffold).
   - 1.0.1 PATCH: deployed GMA auth configuration verified against sbv2_gmafd_chef,
     correcting the issuer and GAHS claims and Principle I's rationale.
-  - 1.0.2 PATCH: this amendment (see below).
+  - 1.0.2 PATCH: Principle II's mapping re-keyed from a `status.code` envelope to HTTP
+    status codes after reading the v5 spec; Prefab scaffold obligation deferred.
+  - 1.1.0 MINOR: this amendment (see below).
+
+Modified principles (1.1.0):
+  - I. Pass-Through Identity — added the `403` rule: authenticated-but-unauthorised is a
+    distinct, NON-retryable outcome (`kind: "forbidden"`), never conflated with `401`.
+    Retrying a `403` cannot succeed and wastes the operator's time. Pass-through itself
+    is unchanged.
+  - II. Mandatory Completeness Caveat (NON-NEGOTIABLE) — added the SECOND AXIS:
+    `unavailableComponents`, naming sections of a composite answer that could not be
+    retrieved. `complete` now requires BOTH axes empty. Added mapping rows for
+    body-level partial failure inside a `200` (a GraphQL-style `errors[]`), HTTP `207`,
+    HTTP `403`, and HTTP `424`. Added the rule that a resolution or matching outcome is
+    NOT incompleteness and MUST NOT be folded into this verdict.
+  - IV. Curated Task-Oriented Tools — added the READ-ONLY rules: a read-only tool MUST
+    NOT accept a query, query fragment, field selection, or operation name, and MUST NOT
+    accept an upstream path or path fragment. Added the rule that a tool MUST NOT assert
+    an upstream default it has not verified. Surface-expansion guidance moved here from
+    a frozen list in Technology & Platform Constraints.
+  - V. Config-Driven Ops & Safe Observability — customer, account, bet, and receipt
+    identifiers are named as personal data: never logged, traced, or echoed in an error
+    message, including in the path field of a log line. `instances` generalised to
+    "scoping override" since scoping is per-domain (brand instance for catalogue,
+    jurisdiction context for customer).
+
+Modified sections (1.1.0):
+  - Technology & Platform Constraints — the frozen "v1 API surface" / "v1 tool surface"
+    entries are replaced by a per-domain surface register, so adding a domain updates a
+    table rather than requiring the surface list to be rewritten. Adding a domain to the
+    register is MINOR; the register records what each domain may call.
+  - Development Workflow & Quality Gates — fixture library extended to the newly
+    distinguishable outcomes; must-cover cases gained the composite-answer,
+    forbidden-not-retried, read-only-by-construction, and unverified-assumption cases.
+
+Added sections (1.1.0): "Deployed GMA customer & bet surfaces (verified 2026-09-08)"
+  under Technology & Platform Constraints.
 
 Modified principles (1.0.2):
   - II. Mandatory Completeness Caveat — mapping table re-keyed from `status.code`
@@ -50,6 +93,33 @@ Removed sections: none
 
 Templates & commands: no changes required. `/speckit-plan`, `/speckit-tasks`,
 and `/speckit-analyze` read this constitution at runtime.
+
+Verified 2026-09-08 against the GMA source, for the 1.1.0 amendment:
+  - `/crs/**` is a raw forwarding proxy (CrsHttpRequestsController) declared in NO
+    OpenAPI spec: `/crs/accounts/{accountId}` has no documented status set at all. Its
+    completeness therefore CANNOT be derived from a declared contract, which is why
+    Principle II gains a rule for surfaces publishing no partial-failure signal.
+  - `GET /crs/accounts/{accountId}` and `.../expectedRiskSettings` are intercepted
+    (CrsHttpRequestsController:213, :232) and enriched by
+    CustomerRiskCatalogEnrichmentService, which fills each hierarchy override with its
+    full named ancestor chain. GMA already performs that resolution; a tool MUST NOT
+    duplicate it with its own catalogue calls.
+  - `POST /qbs/{path}` returns `403` when the operator lacks permission for the
+    requested GraphQL operation (QbsHttpRequestsController:96, :138), gated by
+    `spring.controller.qbs.custom.authorization.enabled`, whose packaged default is
+    `false` (application.properties:142). The `403` path is reachable but not active in
+    the packaged default. It is mapped regardless: a flag flip MUST NOT turn a distinct
+    outcome into a retry loop.
+  - QBS returns HTTP `200` carrying GraphQL `errors[]` with requested fields left
+    unpopulated; GMA's own BetSearchClient logs a warning and returns the partial result
+    (BetSearchClient.java:52). A `200` is therefore NOT sufficient evidence of a complete
+    answer on that surface.
+  - `207` is declared on `notes-api.yaml:36` and `bulk-actions-api.yaml:29`; `424` on
+    `notes-api.yaml:93` and `bulk-actions-api.yaml:54`. Neither appears on the CRS
+    account path. Both are mapped now so the first tool to meet one has no discretion.
+  - `GET /accounts/{accountId}/metrics` is `deprecated: true`
+    (customer-metrics.yaml:29); the `POST` variant is current. Principle IV's
+    deprecation rule binds this choice.
 
 Verified 2026-09-03 against ../all-chef-fdg/sbv2_gmafd_chef and the GMA source:
   - okta.auth.enabled=true in all deployed envs (attributes/common.rb:120,
@@ -110,6 +180,11 @@ substitution breaks authorization silently rather than loudly.
   deployment MUST NOT accept tokens from an issuer other than its configured one.
 - HTTP `401` from GMA MUST surface as a tool error tagged `kind: "auth"` so a human
   can re-authenticate. It MUST NOT be retried with different credentials.
+- HTTP `403` from GMA MUST surface as a tool error tagged `kind: "forbidden"` and MUST
+  be marked NOT retryable. It means the identity is valid but lacks permission for the
+  operation, which is a different human action — request access, not sign in again — and
+  a retry cannot succeed. It MUST NOT be conflated with `401`, and MUST NOT be reported
+  as an upstream failure, which would invite a retry loop.
 - Any identity model other than pass-through (service account, token exchange,
   registered agent identity) MUST NOT be introduced without a written record — in
   this repository — of how per-user GAHS authorization is preserved. That record is
@@ -143,39 +218,74 @@ Partial data MUST NEVER be presentable as complete.
   descriptor. Tools MUST NEVER receive a bare payload.
 - Every tool result MUST carry `completeness` as a structured, top-level field. It
   MUST NOT be prose-only and MUST NOT be omitted, including on full success.
-- `complete` MUST be `true` only when every hop reported unqualified success
-  (HTTP `200` on the v5 catalogue surface).
+- `Completeness` has **two independent failure axes**, and `complete` MUST be `true`
+  only when **both** are empty and every hop reported unqualified success:
+  1. `failedInstances` — sources that did not answer. *Is this list missing rows?*
+  2. `unavailableComponents` — named sections of a composite answer that could not be
+     retrieved, even though every source consulted answered. *Is this record missing a
+     section?*
+- The two axes MUST both be present in a tool's output schema and MUST NOT be merged.
+  They demand different agent behaviour: a failed instance invites a narrowed retry, a
+  missing component tells the agent to state what is absent. A composite tool that
+  reports a missing section as a failed instance instructs the agent to retry with
+  different scoping, a correction that cannot work — so the agent retries indefinitely.
+- A tool assembling an answer from several sources MUST name every section it could not
+  retrieve. A composite answer missing a section MUST NEVER be `complete: true`.
 - A tool making N GMA calls MUST merge every hop: `complete` is the AND of all hops;
   the reported outcome is the worst hop outcome by precedence
   `TIMEOUT_PARTIAL` > `TOO_BROAD` > `PARTIAL` > `COMPLETE`;
-  `failedInstances` and `errors` are the union across hops.
+  `failedInstances`, `unavailableComponents` and `errors` are the union across hops.
 - GMA outcome → MCP outcome mapping is fixed and MUST be implemented in exactly one
   place. On the **v5 catalogue surface** the upstream signal is the **HTTP status
   code**, not a body field (see "Deployed GMA partial-failure contract" below):
 
   | GMA outcome | MCP outcome |
   |---|---|
-  | HTTP `200` | result, `complete: true` |
+  | HTTP `200`, no body-level errors | result, `complete: true` |
+  | HTTP `200` whose body reports errors and leaves requested data unpopulated | result + caveat, `complete: false` — see below |
   | HTTP `206` | result + structured caveat listing `failedInstances` |
+  | HTTP `207` | result + structured caveat, treated as `206` is |
+  | a needed section unavailable while every source answered | result + caveat naming it in `unavailableComponents` |
   | too broad (derived from result cardinality) | result framed as "too broad — narrow by …" |
   | transport timeout with partial data | result + caveat |
   | transport timeout with no data | tool error |
   | HTTP `400` | tool error (agent self-corrects its arguments) |
-  | HTTP `404` | tool error, `kind: "notFound"` |
-  | HTTP `500` | tool error |
   | HTTP `401` | tool error, `kind: "auth"` |
+  | HTTP `403` | tool error, `kind: "forbidden"`, NOT retryable |
+  | HTTP `404` | tool error, `kind: "notFound"` |
+  | HTTP `424` | tool error, `kind: "upstream"`, retryable — a dependency of GMA failed |
+  | HTTP `500` | tool error |
 
+- **A success status is not by itself evidence of a complete answer.** Where a surface
+  can return a success status while reporting errors inside the response body — a
+  GraphQL `errors[]` alongside partially unpopulated `data` is the case in hand — a tool
+  MUST inspect the body and MUST mark the result incomplete when it reports errors. A
+  tool MUST NOT infer completeness from the status code alone on such a surface.
+- Where a surface publishes **no** partial-failure signal at all — a raw forwarding
+  proxy with no declared contract — a tool MUST NOT invent one. It reports either a
+  complete answer or a tool error, and where that surface contributes one section of a
+  composite answer, its failure MUST be reported through `unavailableComponents`.
 - Where a GMA surface **does** expose a `status.code` envelope (the older `api.yaml`
   family, via `common.yaml`), a tool built on it MUST map that envelope's codes onto
   the same outcome vocabulary above. The internal `Completeness` type is the single
   representation regardless of which upstream surface produced it.
-
+- **A resolution, matching, or disambiguation outcome is NOT incompleteness** and MUST
+  NOT be folded into this verdict. When every source answered fully but the tool could
+  not determine which of several retrieved records applies, the result is `complete`
+  and the ambiguity is reported as its own structured field (Principle IV). Marking
+  such a result incomplete trains the agent to caveat data that is in fact whole, which
+  devalues every genuine caveat.
 - Tool descriptions MUST instruct the agent to relay partial-data caveats to the
   user.
 
 **Rationale**: This is the single correctness trap that matters most in a
 risk/trading context. A confidently-wrong "here is the full catalogue" built from
-three of five brand instances is worse than an error.
+three of five brand instances is worse than an error. The second axis exists because
+the first cannot express the composite case: a customer's applied bet limit returned
+without the risk settings it should be compared against is a *plausible-looking half
+answer*, and under a one-axis verdict every source answered, so it would be reported
+as complete. In a risk context that is the same failure as the original one, arriving
+through a different door.
 
 ### III. Modular Boundaries
 
@@ -212,13 +322,41 @@ The tool surface is hand-curated for the model, never generated from GMA's API.
   narrow by. Too-broad MAY be determined by the upstream system where it reports one,
   or derived by the tool from result cardinality where it does not (the v5 catalogue
   surface does not report it).
+- Where a tool must decide **which of several retrieved records applies** to the answer,
+  the outcome MUST be a structured, model-facing field enumerating the distinguishable
+  cases — including the case where the tool's own matching logic failed, kept separate
+  from the case where the records genuinely contain no applicable entry. Collapsing
+  those two makes a systematic matching defect indistinguishable from a fact about the
+  data, and the defect then cannot be observed.
+- A tool MUST NOT assert an upstream behaviour it has not verified — default ordering,
+  the meaning of an absent record, or which of two fields an upstream value corresponds
+  to. Where such an assumption is load-bearing and unverified, the tool MUST state the
+  limitation in its result and the assumption MUST be recorded with an owner and a
+  removal condition (see Compliance review).
+- A tool declared read-only MUST be read-only **by construction**, not by convention:
+  - It MUST NOT accept a query, query fragment, field selection, or operation name as
+    input. Requests issued upstream MUST be fixed in the server.
+  - It MUST NOT accept an upstream path or path fragment as input, so a catch-all
+    upstream proxy cannot be reached with a caller-chosen target.
+  - The request mechanics MUST NOT be relied on as the guard, because a read operation
+    may be issued the same way a write would be.
+  These MUST be enforced by an automated assertion, not by review alone.
 - Tool input and output schemas MUST be clean, LLM-facing definitions. GMA DTOs,
   HTTP shapes, and envelope internals MUST NOT leak into a tool schema.
 - Operational values MUST NOT be tool arguments — see Principle V.
-- New tools MUST NOT be built on GMA endpoints marked `deprecated: true`.
+- New tools MUST NOT be built on GMA endpoints marked `deprecated: true`, including
+  where a deprecated variant of a needed operation exists alongside a current one.
+- The tool surface MAY grow, and growth is governed by this principle rather than by a
+  frozen list: each domain's permitted GMA operations are recorded in the surface
+  register under Technology & Platform Constraints. Adding a domain or an operation to
+  that register is a MINOR amendment; a tool MUST NOT call an operation absent from it.
 
 **Rationale**: A generated surface floods tool selection and pushes HTTP mechanics
-into the model's context. A small curated surface is what makes agents reliable.
+into the model's context. A small curated surface is what makes agents reliable. The
+read-only rules are structural because a guarantee that depends on the agent's good
+behaviour is not a guarantee: an agent that can supply its own query can supply a
+mutation, and the only reliable defence is that no caller-supplied value ever reaches
+a query or a path.
 
 ### V. Configuration-Driven Operations & Safe Observability
 
@@ -232,18 +370,39 @@ line.
   deploying one instance per GMA environment (for example `gma-mcp-qa` → QA GMA,
   `gma-mcp-prd` → prod GMA).
 - Missing required configuration MUST fail fast at startup, not at first request.
-- `instances` MAY be an optional per-tool override, defaulting to the configured
-  value. A `list_instances` tool MUST exist so agents can discover valid brand codes
-  rather than guess them.
+- A per-tool **scoping override** MAY exist, defaulting to the configured value, and its
+  vocabulary is the domain's own — brand instances for the catalogue, jurisdiction
+  contexts for customer data. A discovery tool MUST exist for any scoping vocabulary an
+  agent is expected to supply, so codes are looked up rather than guessed. A scoping
+  argument MUST NOT be typed as a list where the domain admits only one value, because
+  a list tells the model a fan-out is possible when it is not.
+- Bounds on work a tool performs on the caller's behalf — result caps, traversal depth,
+  the number of upstream hops a composite may make — MUST come from configuration, and
+  reaching a bound MUST be reported in the result. Silent truncation is prohibited.
 - Tokens, credentials, and PII MUST NEVER be logged, traced, or included in error
   messages. Logs carry tool name, GMA operation/path, per-hop upstream outcome,
   resolution outcome, and latency.
+- **Customer identifiers are personal data.** An account identifier, bet identifier, bet
+  receipt identifier, customer name, and any customer financial value MUST NEVER appear
+  in a log, a trace, a diagnostic field, or an error message. Where such an identifier
+  appears in a request path, the logged operation MUST be the path *template*, never the
+  interpolated path. An error MUST describe the expected form of a rejected identifier
+  without echoing the value, and a not-found MUST state that nothing matched.
+- Where per-customer correlation is genuinely required, it MUST be introduced as a
+  deliberate, documented decision — never as a default, and never via a digest of a
+  low-entropy identifier, which is reversible by anyone holding the customer list and so
+  delivers the disclosure risk while appearing safe.
 - The server MUST emit W3C `traceparent` to GMA so GMA's existing Micrometer +
   OpenTelemetry pipeline continues the trace with no GMA change.
 
 **Rationale**: Letting an agent choose prod-versus-QA is an accident waiting to
 happen; letting a token reach a log is an incident. Both are prevented by
-configuration boundaries, not by care.
+configuration boundaries, not by care. Customer identifiers are named explicitly
+because they are the join key to a named person's bets, notes, and finances, and
+because in a gambling operator's logs they additionally reveal *that a specific
+customer is under investigation* — which makes a log line a regulatory exposure rather
+than an operational convenience. The correlation that debugging actually needs is
+per-session, and `traceparent` already provides it without naming anyone.
 
 ## Technology & Platform Constraints
 
@@ -256,13 +415,26 @@ configuration boundaries, not by care.
 - **GMA integration**: HTTP only, as an ordinary consumer of the BFF, exactly as the
   front-end is. This server MUST NOT be built into or deployed as part of GMA, and
   MUST NOT require a GMA code change.
-- **v1 API surface**: the v5 catalogue API (`api_catalogue.yaml`) — `GET /v5/instances`,
-  `POST /v5/searchByName`, `GET /v5/{superclasses|subclasses|eventTypes}/{id}`,
-  `GET /v5/subclasses/{id}/eventTypes`, `GET /v5/eventTypes/{id}/events`. The
-  deprecated `search.yaml` market operations MUST NOT be used.
-- **v1 tool surface**: exactly three tools — `list_instances`,
-  `find_catalogue_entity`, `get_catalogue_entity`. Expanding the surface is
-  governed by Principle IV, not by convenience.
+- **Surface register**: a tool MUST NOT call a GMA operation absent from this register.
+  Adding a domain or an operation here is a MINOR amendment (Principle IV).
+
+  | Domain | Permitted GMA operations | Scoping vocabulary |
+  |---|---|---|
+  | `catalogue` | `GET /v5/instances`; `POST /v5/searchByName`; `GET /v5/{superclasses\|subclasses\|eventTypes}/{id}`; `GET /v5/subclasses/{id}/eventTypes`; `GET /v5/eventTypes/{id}/events`; `GET /v5/events/{id}` | brand instance (`instancesList`, or `sources` where the operation declares that name) |
+  | `customer` | `GET /crs/accounts/{accountId}`; `POST /accounts/{accountId}/metrics`; `POST /qbs/{path}` restricted to the server's own fixed bet-search documents; `GET /v5/events/{id}` | jurisdiction context |
+
+  The deprecated `search.yaml` market operations MUST NOT be used, nor
+  `GET /accounts/{accountId}/metrics`, which is marked deprecated in favour of the
+  `POST` variant.
+- **Per-operation parameter names MUST NOT be assumed uniform.** The v5 surface names
+  its instance parameter `instancesList` on some operations and `sources` on others; a
+  client MUST carry the name per call rather than hardcoding one globally.
+- **Tool surface**: hand-curated per domain, sized so each agent sees a small coherent
+  list. Growth is governed by Principle IV, not by convenience.
+- **Read-only domains**: a domain declared read-only MUST satisfy Principle IV's
+  structural read-only rules. Writes — bet manipulation, risk-setting amendment, note
+  deletion — are outside every currently ratified domain and MUST NOT be reachable,
+  including incidentally through a proxy operation that would accept them.
 - **Scaffold obligation** *(deferred 2026-09-03 — local-only development)*:
   production deployment MUST run from a repository scaffolded via the org's Prefab
   TypeScript template, inheriting the org pipeline, environment config, TLS, and
@@ -309,7 +481,47 @@ Consequences that bind this project:
   `status.code` surface maps onto the same vocabulary rather than introducing a second
   representation.
 
-### Deployed GMA authentication (verified 2026-09-03)
+### Deployed GMA customer & bet surfaces (verified 2026-09-08)
+
+Verified by reading the GMA source and OpenAPI specs, and against one real customer-risk
+response and one real bet-search response from a non-production environment. Recorded
+because these three surfaces behave **unlike** the v5 catalogue surface Principle II was
+first written for, and the differences are the reason this amendment exists.
+
+| Fact | Value |
+|---|---|
+| CRS account path | `/crs/**` is a raw forwarding proxy; `/crs/accounts/{accountId}` is declared in **no** OpenAPI spec and publishes no partial-failure signal |
+| CRS override enrichment | GMA already resolves each hierarchy override's full named ancestor chain (`CustomerRiskCatalogEnrichmentService`, intercepted at `CrsHttpRequestsController:213`) |
+| CRS scoping | `contexts[]`, one entry **per jurisdiction**; a customer has several, each with its own settings and overrides |
+| QBS partial failure | HTTP **`200`** carrying GraphQL `errors[]` with requested fields unpopulated (`BetSearchClient.java:52`) |
+| QBS authorization | `403` per GraphQL operation (`QbsHttpRequestsController:96`), gated by a flag whose packaged default is `false` |
+| Metrics | `POST /accounts/{accountId}/metrics` is current; the `GET` variant is `deprecated: true` |
+| `207` / `424` | declared on `notes-api.yaml` and `bulk-actions-api.yaml`; **not** on the CRS account path |
+| Catalogue vocabularies | risk overrides use `SUPERCLASS`/`SUBCLASS`/`EVENT_TYPE`/`MARKET_TYPE`; bet legs use `SPORT`/`COMPETITION`/`EVENT`/`MARKET`/`SELECTION` — **different trees**, and a leg carries no risk-side level |
+
+Consequences that bind this project:
+
+- A tool on the CRS account path MUST NOT synthesise a partial-failure verdict it has no
+  signal for. It reports a complete answer or a tool error, and its failure inside a
+  composite MUST be reported via `unavailableComponents` (Principle II).
+- A tool on QBS MUST inspect the response body for reported errors and MUST NOT treat a
+  `200` as evidence of completeness (Principle II).
+- A customer's risk configuration MUST NOT be flattened across jurisdictions. Merging
+  them would report a customer restricted in one state and unrestricted in another as
+  neither.
+- A tool MUST NOT duplicate GMA's override-name enrichment with its own catalogue calls.
+- Joining a bet leg to a risk override requires resolving the leg's **event** to obtain
+  its risk-side catalogue position; the two vocabularies do not otherwise meet. This hop
+  is mandatory, not an optimisation.
+- Deriving a jurisdiction context identifier from a catalogue jurisdiction identifier
+  works for US states but **provably fails** for at least one non-US jurisdiction
+  (`urn:i:FD:CA-ON` against a context observed as `NXTCANBS`). A tool MUST therefore
+  treat matching as fallible and report the failure distinctly (Principle IV).
+- Applied risk figures are computed by GMA's downstream pricing and risk engine, whose
+  formula is not exposed. A tool MUST NOT reconstruct or imply how a limit was derived;
+  it MAY place applied and configured values side by side and compare them directly.
+
+
 
 Verified against `../all-chef-fdg/sbv2_gmafd_chef` and the GMA source. These are
 facts about the system as deployed, not aspirations; they MUST be re-verified if GMA's
@@ -348,15 +560,33 @@ implementation MAY land in the same change.
   upstream outcome, for every GMA operation a tool depends on. On the v5 catalogue
   surface those outcomes are HTTP `200`, `206`, `400`, `401`, `404`, `500`, plus a
   simulated transport timeout (which has no HTTP response at all). On a surface that
-  exposes a `status.code` envelope, they are that envelope's codes. A tool MUST NOT
-  ship without its fixtures. Hand-crafting a fixture from the OpenAPI schema is
-  acceptable when the real response cannot be captured; the fixture MUST record that
-  it was hand-crafted.
+  exposes a `status.code` envelope, they are that envelope's codes. On a surface that can
+  report errors inside a success response, a **success-carrying-errors** fixture is
+  mandatory and is the single most important one on that surface. Where an operation can
+  return `403`, `207`, or `424`, each MUST have a fixture. A tool MUST NOT ship without
+  its fixtures. Hand-crafting a fixture from the OpenAPI schema is acceptable when the
+  real response cannot be captured; the fixture MUST record that it was hand-crafted, and
+  for a surface with no declared contract at all it MUST record what it was derived from.
 - **Must-cover cases (blocking)**: single-match auto-resolve; multi-match candidates;
   zero-match; partial-success caveat surfaced at top level; too-broad → narrow hint;
   multi-hop aggregation where one partial hop flags the whole result; argument error
   and upstream failure → tool error; `401` → auth-flagged error; timeout with partial
   data vs timeout with none. Each MUST be covered by a test naming the case.
+  For composite and read-only tools, additionally: a success response carrying reported
+  errors marked incomplete; a composite answer missing one section reported through
+  `unavailableComponents` and never `complete: true`; `403` producing a non-retryable
+  `forbidden` error that the agent does not retry; every distinguishable
+  matching/resolution outcome, including the tool's own matching failure kept separate
+  from a genuine absence; a bound reached reported rather than silently truncated;
+  duplicate work deduplicated before fan-out; and an automated assertion that no
+  caller-supplied value can reach an upstream query or path.
+- **Privacy assertion (blocking)**: an automated check MUST prove that no customer
+  identifier, customer name, or customer financial value appears in any log field, trace
+  field, or error message.
+- **Amendment acceptance (blocking)**: when this constitution's shared types gain a new
+  member or axis, the existing domains' tests MUST pass **unmodified**. A change that
+  requires editing an existing domain's tests to accommodate a shared-type addition is
+  not additive, and the amendment's MINOR classification is then wrong.
 - **Coverage gates (blocking, CI-enforced)**: minimum 90% line and 85% branch
   coverage across `src/`, with `core/` held to 95% line. Lowering a threshold
   requires the amendment procedure below; it is never a fix for a failing build.
@@ -366,9 +596,10 @@ implementation MAY land in the same change.
 - **Live GMA is manual and pre-release, never CI**: token management is
   human-in-the-loop and failure modes cannot be forced against a live BFF.
 - **Review**: every change MUST be reviewed against the Core Principles. A reviewer
-  MUST specifically confirm that no tool result lost its `completeness` field, that no
-  token or PII reached a log, and that no `core → domain` or `domain → domain` import
-  was introduced.
+  MUST specifically confirm that no tool result lost its `completeness` field, that
+  neither completeness axis was dropped or merged into the other, that no token, PII, or
+  customer identifier reached a log, that no read-only tool gained a caller-supplied
+  query or path, and that no `core → domain` or `domain → domain` import was introduced.
 - **Static analysis and formatting** MUST run in CI and MUST pass before merge.
 
 ## Governance
@@ -407,4 +638,4 @@ governing document.
 - `AGENTS.md` / `CLAUDE.md` in this repository carry runtime development guidance and
   MUST NOT contradict this constitution.
 
-**Version**: 1.0.2 | **Ratified**: 2026-09-03 | **Last Amended**: 2026-09-03
+**Version**: 1.1.0 | **Ratified**: 2026-09-03 | **Last Amended**: 2026-09-08
