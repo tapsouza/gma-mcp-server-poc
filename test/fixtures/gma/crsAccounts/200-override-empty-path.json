@@ -1,0 +1,40 @@
+{
+  "accountId": "acct-test-0002",
+  "countryCode": "US",
+  "customerNotes": {
+    "hasNotes": false,
+    "count": 0
+  },
+  "contexts": [
+    {
+      "contextId": "ctx-us-nj",
+      "stakeFactor": 0.75,
+      "birDelay": 5,
+      "gmltl": false,
+      "liabilityGroup": {
+        "code": "LG2",
+        "description": "Watched",
+        "interceptValue": 500,
+        "displayOrder": 2,
+        "colour": "#AAAA00"
+      },
+      "hierarchyGroups": [
+        {
+          "entityType": "SUBCLASS",
+          "entityId": "urn:sub:unknown-to-catalogue",
+          "stakeFactor": 0.3,
+          "liabilityGroup": {
+            "code": "LG4",
+            "description": "Restricted",
+            "interceptValue": 200,
+            "displayOrder": 4,
+            "colour": "#FF6600"
+          },
+          "metadata": {
+            "entities": []
+          }
+        }
+      ]
+    }
+  ]
+}

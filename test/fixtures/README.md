@@ -91,6 +91,28 @@ declare.
 | `401-unauthorized.json`        | identity invalid or expired                                                                                             |
 | `500-server-error.json`        | nothing usable                                                                                                          |
 
+### `crsAccounts/` — `GET /crs/accounts/{accountId}`
+
+Derived from the **Java model classes** (see the provenance table above), cross-checked against
+`@flutter-global/gma-client`'s `AccountRiskSettings` / `Context` / `HierarchyGroup` /
+`LiabilityGroup` types. This path appears in no OpenAPI spec.
+
+Note the `path` field in the error fixtures carries the **template**, not an interpolated
+identifier — the standing rule that no fixture holds a customer datum applies to error bodies too.
+
+| Fixture                        | Outcome                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `200-three-jurisdictions.json` | three jurisdictions with **deliberately different** settings (0.5 / 1.0 / 2.0 stake factors, RESTRICTED / STANDARD / UNRESTRICTED), one override per level with its full ancestor chain — built so that any merge, average, or collapse is visible (FR-006, SC-003). Also carries `customerNotes` and a `nickname` with staff names, so their exclusion is provable |
+| `200-override-empty-path.json` | an override whose `metadata.entities` is `[]` — `createHierarchyGroupMetadataEntities` returns `List.of()` when the id matches nothing in the catalogue                                                                                                                                                                                                             |
+| `200-nulls.json`               | every boxed scalar absent, to prove `null ≠ 0`                                                                                                                                                                                                                                                                                                                      |
+| `401-unauthorized.json`        | identity invalid or expired → human re-authenticates                                                                                                                                                                                                                                                                                                                |
+| `403-forbidden.json`           | identity valid, permission absent → `forbidden`, NOT retryable                                                                                                                                                                                                                                                                                                      |
+| `404-not-found.json`           | unknown account → `notFound`, never an empty success with fabricated defaults                                                                                                                                                                                                                                                                                       |
+| `500-server-error.json`        | nothing usable                                                                                                                                                                                                                                                                                                                                                      |
+
+There is deliberately **no `206`**: CRS publishes no partial-failure contract at all
+(research.md R2), and a `206` fixture would assert a response this surface never sends.
+
 ### `crsContexts/` — `GET /crs/contexts`
 
 The response is a **bare JSON array** of `ContextEntity`, not an object with a `contexts` key —

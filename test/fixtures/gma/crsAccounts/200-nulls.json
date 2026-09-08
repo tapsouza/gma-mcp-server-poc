@@ -1,0 +1,12 @@
+{
+  "accountId": "acct-test-0003",
+  "customerNotes": {
+    "hasNotes": false,
+    "count": 0
+  },
+  "contexts": [
+    {
+      "contextId": "ctx-us-nj"
+    }
+  ]
+}

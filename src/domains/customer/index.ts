@@ -5,7 +5,15 @@ import { isToolError } from '../../core/errors.js';
 import type { GmaClient } from '../../core/gmaClient.js';
 import { extractOperatorToken, type RequestIdentitySource } from '../../core/identity.js';
 import type { Logger } from '../../core/telemetry.js';
-import { listJurisdictionContextsOutputSchema } from './schemas.js';
+import {
+  getCustomerRiskProfileInputSchema,
+  getCustomerRiskProfileOutputSchema,
+  listJurisdictionContextsOutputSchema
+} from './schemas.js';
+import {
+  GET_CUSTOMER_RISK_PROFILE_DESCRIPTION,
+  getCustomerRiskProfile
+} from './tools/getCustomerRiskProfile.js';
 import {
   LIST_JURISDICTION_CONTEXTS_DESCRIPTION,
   listJurisdictionContexts
@@ -137,6 +145,50 @@ export function registerCustomerDomain(server: McpServer, deps: DomainDeps): voi
       } catch (error) {
         logger.error({
           tool: 'list_jurisdiction_contexts',
+          errorKind: isToolError(error) ? error.kind : 'upstream',
+          latencyMs: Date.now() - startedAt,
+          event: 'tool.error'
+        });
+        return toErrorResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    'get_customer_risk_profile',
+    {
+      title: "Get a customer's risk configuration",
+      description: GET_CUSTOMER_RISK_PROFILE_DESCRIPTION,
+      inputSchema: getCustomerRiskProfileInputSchema,
+      outputSchema: getCustomerRiskProfileOutputSchema,
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async (args, extra) => {
+      const startedAt = Date.now();
+      try {
+        const token = extractOperatorToken(extra as RequestIdentitySource);
+        const result = await getCustomerRiskProfile(client, token, { accountId: args.accountId });
+
+        logger.info({
+          tool: 'get_customer_risk_profile',
+          aggregateOutcome: result.completeness.outcome,
+          // A COUNT of jurisdictions, and nothing else. NOT the account identifier,
+          // NOT a jurisdiction code, NOT a stake factor — every one of those is
+          // either personal data or a customer financial value (Principle V,
+          // FR-029). `test/unit/privacy.test.ts` proves this line stays clean.
+          matchCount: result.jurisdictionConfigurations.length,
+          latencyMs: Date.now() - startedAt,
+          event: 'tool.success'
+        });
+
+        return toSuccessResult({
+          accountId: result.accountId,
+          jurisdictionConfigurations: result.jurisdictionConfigurations,
+          completeness: result.completeness
+        });
+      } catch (error) {
+        logger.error({
+          tool: 'get_customer_risk_profile',
           errorKind: isToolError(error) ? error.kind : 'upstream',
           latencyMs: Date.now() - startedAt,
           event: 'tool.error'
