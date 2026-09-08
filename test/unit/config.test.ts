@@ -83,7 +83,6 @@ describe('loadConfig', () => {
       expect(config.maxCandidates).toBe(25);
       expect(config.logLevel).toBe('info');
     });
-
     it('applies defaults when an optional variable is present but empty', () => {
       const config = loadConfig({
         ...validEnv(),
@@ -130,6 +129,73 @@ describe('loadConfig', () => {
     });
   });
 
+  describe('case: the customer-domain bounds are optional with a default (Principle V, FR-010, FR-023)', () => {
+    it('applies both documented defaults when neither variable is set', () => {
+      // The property that matters: an existing deployment that has never heard of
+      // these variables still starts. Making either one required would turn an
+      // additive domain into a breaking change to every deployment's environment.
+      const config = loadConfig(validEnv());
+
+      expect(config.customerMaxBets).toBe(20);
+      expect(config.customerMaxEventResolutions).toBe(10);
+    });
+
+    it('applies the defaults when the variables are present but empty', () => {
+      const config = loadConfig({
+        ...validEnv(),
+        CUSTOMER_MAX_BETS: '',
+        CUSTOMER_MAX_EVENT_RESOLUTIONS: ''
+      });
+
+      expect(config.customerMaxBets).toBe(20);
+      expect(config.customerMaxEventResolutions).toBe(10);
+    });
+
+    it('honours an explicit value for each, so a test or a deployment can tighten a bound', () => {
+      const config = loadConfig({
+        ...validEnv(),
+        CUSTOMER_MAX_BETS: '5',
+        CUSTOMER_MAX_EVENT_RESOLUTIONS: '2'
+      });
+
+      expect(config.customerMaxBets).toBe(5);
+      expect(config.customerMaxEventResolutions).toBe(2);
+    });
+
+    it.each([
+      ['zero', '0'],
+      ['negative', '-1'],
+      ['fractional', '1.5'],
+      ['non-numeric', 'twenty']
+    ])('rejects a %s CUSTOMER_MAX_BETS, naming the variable', (_label, value) => {
+      expect(() => loadConfig({ ...validEnv(), CUSTOMER_MAX_BETS: value })).toThrowError(
+        /CUSTOMER_MAX_BETS must be a positive integer/
+      );
+    });
+
+    it.each([
+      ['zero', '0'],
+      ['negative', '-3'],
+      ['fractional', '2.5'],
+      ['non-numeric', 'ten']
+    ])('rejects a %s CUSTOMER_MAX_EVENT_RESOLUTIONS, naming the variable', (_label, value) => {
+      expect(() =>
+        loadConfig({ ...validEnv(), CUSTOMER_MAX_EVENT_RESOLUTIONS: value })
+      ).toThrowError(/CUSTOMER_MAX_EVENT_RESOLUTIONS must be a positive integer/);
+    });
+
+    it('reports a config error kind that only an operator can act on', () => {
+      try {
+        loadConfig({ ...validEnv(), CUSTOMER_MAX_BETS: '0' });
+        expect.unreachable('loadConfig must refuse a non-positive bound');
+      } catch (error) {
+        const toolError = error as ToolError;
+        expect(toolError.kind).toBe('config');
+        expect(toolError.retryable).toBe(false);
+      }
+    });
+  });
+
   describe('instance list parsing', () => {
     it('splits and trims the default instance list', () => {
       const config = loadConfig({ ...validEnv(), GMA_DEFAULT_INSTANCES: ' PP , BF ,SBG ' });
@@ -144,10 +210,15 @@ describe('loadConfig', () => {
   });
 
   describe('case: no operational value is readable from a tool argument (FR-018)', () => {
-    it('exposes exactly the six configured fields and nothing agent-supplied', () => {
+    it('exposes exactly the eight configured fields and nothing agent-supplied', () => {
       const config = loadConfig(validEnv());
 
+      // Exhaustive by design: a new field has to be added here deliberately, which
+      // is what makes an accidentally-agent-supplied operational value visible in
+      // review. The two customer bounds were added by feature 004.
       expect(Object.keys(config).sort()).toEqual([
+        'customerMaxBets',
+        'customerMaxEventResolutions',
         'defaultInstances',
         'gmaBaseUrl',
         'logLevel',

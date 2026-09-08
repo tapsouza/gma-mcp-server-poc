@@ -29,6 +29,19 @@ import type { GmaResult } from './types.js';
 export interface GmaCallOptions {
   /** The operator's bearer, forwarded unaltered. */
   readonly token: OperatorToken;
+  /**
+   * The UNINTERPOLATED path, e.g. `/crs/accounts/{accountId}`. Defaults to `path`.
+   *
+   * This is the only thing that ever reaches a log line, a span attribute, or a
+   * tool-visible error message — never `path` itself (constitution Principle V,
+   * research.md R13). For `/v5/superclasses/{urn}` the distinction is cosmetic; for
+   * `/crs/accounts/{accountId}` the interpolated path IS a personal datum, and the
+   * account identifier is the join key to a named person's bets and finances.
+   *
+   * Defaulting to `path` is what keeps this additive: every catalogue call omits it
+   * and its log lines stay byte-identical.
+   */
+  readonly pathTemplate?: string | undefined;
   /** Instance URNs to scope the query to, already resolved by `instances.ts`. */
   readonly instances?: readonly string[] | undefined;
   /** Caller's cancellation signal, composed with the configured timeout. */
@@ -62,9 +75,20 @@ export interface GmaClient {
  */
 const INSTANCES_PARAM = 'instancesList';
 
-/** A stable operation label for logs and errors — never a URL, which could carry a token. */
-function operationLabel(method: string, path: string): string {
-  return `${method} ${path}`;
+/**
+ * A stable operation label for logs and errors — never a URL, which could carry a
+ * token, and never an INTERPOLATED path, which for a customer surface would carry an
+ * account identifier.
+ *
+ * This takes the TEMPLATE, not the path. That matters twice over: `operation` is
+ * separately allowlisted in `telemetry.ts`, AND it is interpolated into tool-visible
+ * messages by `errors.ts`'s `safeUpstreamDetail` — so a `404` on
+ * `/crs/accounts/{accountId}` built from the real path would read "GMA returned HTTP
+ * 404 for GET /crs/accounts/12345", leaking the identifier to the model and the user
+ * (Principle V, FR-029, FR-030).
+ */
+function operationLabel(method: string, pathTemplate: string): string {
+  return `${method} ${pathTemplate}`;
 }
 
 export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): GmaClient {
@@ -77,7 +101,10 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
     body: unknown,
     options: GmaCallOptions
   ): Promise<GmaResult<T>> {
-    const operation = operationLabel(method, path);
+    // Defaults to `path`, so a catalogue call that passes no template behaves exactly
+    // as it did before. `path` itself never reaches a log line or a message below.
+    const pathTemplate = options.pathTemplate ?? path;
+    const operation = operationLabel(method, pathTemplate);
     const url = new URL(`${config.gmaBaseUrl}${path}`);
 
     if (method === 'GET' && options.instances !== undefined) {
@@ -130,7 +157,8 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
       log.error({
         tool: options.tool,
         operation,
-        path,
+        // The TEMPLATE, never the interpolated path (research.md R13).
+        path: pathTemplate,
         hop: options.hop,
         latencyMs,
         errorKind: 'upstream',
@@ -156,7 +184,8 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
       log.error({
         tool: options.tool,
         operation,
-        path,
+        // The TEMPLATE, never the interpolated path (research.md R13).
+        path: pathTemplate,
         hop: options.hop,
         status,
         latencyMs,
@@ -174,7 +203,8 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
       log.error({
         tool: options.tool,
         operation,
-        path,
+        // The TEMPLATE, never the interpolated path (research.md R13).
+        path: pathTemplate,
         hop: options.hop,
         status,
         latencyMs,
@@ -190,7 +220,8 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
     log[levelForOutcome(completeness.outcome)]({
       tool: options.tool,
       operation,
-      path,
+      // The TEMPLATE, never the interpolated path (research.md R13).
+      path: pathTemplate,
       hop: options.hop,
       status,
       outcome: completeness.outcome,

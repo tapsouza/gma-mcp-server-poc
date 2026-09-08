@@ -22,6 +22,30 @@ live GMA.** None has been observed against a running instance.
 - Entity names (`Football`, `Premier League`, `Winner`) and instance codes (`PP`, `BF`) are
   illustrative. No real host, credential, or personal datum appears anywhere in this library.
 
+### Provenance of the customer-domain fixtures (feature 004)
+
+The four customer surfaces do **not** share the catalogue's provenance, and the difference is
+recorded here because a reader would otherwise assume an OpenAPI source that does not exist.
+
+| Directory          | Operation                            | Derived from                                                                                                                                                                                                                                                                                                     |
+| ------------------ | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crsAccounts/`     | `GET /crs/accounts/{accountId}`      | **The Java model classes**, read field-for-field — `AccountRiskSettings` → `AccountContextRiskSettings` → `AccountContextHierarchyGroup` → `HierarchyGroupMetadata` → `HierarchyGroupMetadataEntity`, plus `LiabilityGroup` and `EligibilityProfile`. This path appears in **no** OpenAPI spec (research.md R15) |
+| `crsContexts/`     | `GET /crs/contexts`                  | `ContextEntity { contextName, contextId, contextCode }`, typed in `@flutter-global/gma-client` `endpoints/account/types.d.ts` (research.md R7)                                                                                                                                                                   |
+| `qbsSearchBets/`   | `POST /qbs/graphql`                  | QBS `schema.graphql` (the `Bet`, `Leg`, `RiskInfo`, `WageInfo` types) plus the observed `200`-with-`errors[]` shape (`BetSearchClient.java:52`, research.md R1)                                                                                                                                                  |
+| `customerMetrics/` | `POST /accounts/{accountId}/metrics` | `customer-metrics.yaml`, the `post:` block and its `oneOf` `400` shapes (research.md R12)                                                                                                                                                                                                                        |
+| `events/`          | `GET /v5/events/{id}`                | `api_catalogue.yaml`, the `Event` schema. **Separate from `entities/`**: those are `eventType` documents from a different path and cover a different operation (research.md R5)                                                                                                                                  |
+
+**Why `events/` is not covered by `entities/`.** The composite resolves each leg's event to
+obtain its risk-side catalogue position, and `GET /v5/events/{id}` returns an `Event` carrying
+`superclassId/Name`, `subclassId/Name` and `eventTypeId/Name` — three id/name pairs no existing
+fixture holds. The existing `entities/` fixtures are `eventType` documents; using one here would
+assert a response shape this operation does not return.
+
+**No customer datum, anywhere.** Account, bet, and receipt identifiers in these fixtures are
+obviously synthetic, no fixture carries a customer name, and monetary values are illustrative
+round numbers. This is the same standing rule the catalogue fixtures follow, restated because
+this surface is where breaking it would matter (Principle V).
+
 ## Outcome coverage
 
 Fixtures are keyed by **HTTP status**, not by a `status.code` envelope: the v5 catalogue surface
@@ -66,6 +90,24 @@ declare.
 | `404-not-found.json`           | unknown identifier → `kind: 'notFound'`                                                                                 |
 | `401-unauthorized.json`        | identity invalid or expired                                                                                             |
 | `500-server-error.json`        | nothing usable                                                                                                          |
+
+### `crsContexts/` — `GET /crs/contexts`
+
+The response is a **bare JSON array** of `ContextEntity`, not an object with a `contexts` key —
+verified against `@flutter-global/gma-client`, whose `fetchCrsContexts` is typed
+`Promise<ContextEntity[]>`. Getting this wrong would have produced an always-empty jurisdiction
+list that still reported `complete: true`.
+
+| Fixture                 | Outcome                                                                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `200-success.json`      | four jurisdictions, including Ontario's **`NXTCANBS`** — a code no derivation from a state name produces, and the concrete justification for `list_jurisdiction_contexts` |
+| `401-unauthorized.json` | identity invalid or expired → human re-authenticates                                                                                                                      |
+| `403-forbidden.json`    | identity valid, permission absent → `forbidden`, NOT retryable (SC-009)                                                                                                   |
+| `500-server-error.json` | nothing usable → `upstream`, never an empty jurisdiction list                                                                                                             |
+
+There is deliberately **no `206`** and no `400` fixture: `/crs/**` is a raw forwarding proxy that
+declares no partial-failure contract at all (research.md R2), and this operation takes no
+argument to malform.
 
 ## The timeout outcome has no fixture, by design
 

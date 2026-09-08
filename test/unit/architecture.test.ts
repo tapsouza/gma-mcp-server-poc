@@ -126,9 +126,13 @@ describe('architecture invariants', () => {
     });
 
     it('keeps HTTP-status-to-error mapping in exactly one module (Principle II)', () => {
+      // `forbidden` is included deliberately: it is the newest kind and the one a
+      // domain is most tempted to construct itself, because a 403 arrives inside a
+      // GraphQL body on one of this project's surfaces. Only core/errors.ts may
+      // decide that a status means "permission absent, do not retry".
       const mappers = files.filter(
         ({ path, source }) =>
-          path !== 'core/errors.ts' && /kind:\s*'(auth|notFound|argument)'/.test(source)
+          path !== 'core/errors.ts' && /kind:\s*'(auth|forbidden|notFound|argument)'/.test(source)
       );
 
       expect(mappers.map((f) => f.path)).toEqual([]);

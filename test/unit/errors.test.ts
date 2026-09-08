@@ -18,7 +18,17 @@ describe('error mapping', () => {
     it.each([
       [400, 'argument', false],
       [401, 'auth', false],
+      // A DELIBERATE DEFECT CORRECTION, not an accommodation of the amendment.
+      // This row previously read `[403, 'upstream', true]`, which documented a live
+      // retry loop: a 403 means the identity lacks permission, so every retry is
+      // guaranteed to fail. Constitution Principle I requires `forbidden`, NOT
+      // retryable, never conflated with `auth`. It is the ONLY existing catalogue
+      // assertion the amendment-acceptance gate permits changing, because the
+      // behaviour itself is what the amendment changes (research.md R10).
+      [403, 'forbidden', false],
       [404, 'notFound', false],
+      // A dependency of GMA failed — distinct cause, same agent action as 500.
+      [424, 'upstream', true],
       [500, 'upstream', true]
     ] as const)('maps HTTP %i to kind %s with retryable=%s', (status, kind, retryable) => {
       const error = fromHttpStatus(status, 'GET /v5/instances');
@@ -29,7 +39,7 @@ describe('error mapping', () => {
       expect(error.message).toContain(String(status));
     });
 
-    it.each([[403], [409], [502], [503], [504]])(
+    it.each([[409], [502], [503], [504]])(
       'maps unmapped status %i to upstream rather than guessing a kind',
       (status) => {
         const error = fromHttpStatus(status, 'GET /v5/instances');
@@ -100,6 +110,61 @@ describe('error mapping', () => {
 
       expect(error.message).toContain('Entity type "market" is not supported.');
       expect(error.message).toContain('Correct the arguments');
+    });
+  });
+
+  describe('case: 403 is forbidden, never auth, and never retried (Principle I, FR-028, SC-009)', () => {
+    it('is its own kind, distinct from auth', () => {
+      const forbidden = fromHttpStatus(403, 'POST /qbs/graphql');
+      const auth = fromHttpStatus(401, 'POST /qbs/graphql');
+
+      expect(forbidden.kind).toBe('forbidden');
+      expect(forbidden.kind).not.toBe(auth.kind);
+    });
+
+    it('is NOT retryable, because a retry with the same identity cannot succeed', () => {
+      // SC-009: the agent must not retry. This is also the defect correction — the
+      // old mapping made 403 retryable, which is a retry loop rather than a bug in
+      // the abstract (research.md R10).
+      const error = fromHttpStatus(403, 'POST /qbs/graphql');
+
+      expect(error.retryable).toBe(false);
+      expect(error.message.toLowerCase()).toContain('do not retry');
+    });
+
+    it('tells the human to request access rather than to sign in again', () => {
+      // The two human actions differ, and conflating them wastes the operator's
+      // time on a re-authentication that changes nothing.
+      const error = fromHttpStatus(403, 'GET /crs/accounts/{accountId}');
+
+      expect(error.message).toMatch(/request access/i);
+      expect(error.message).toMatch(/lacks permission/i);
+      expect(error.message).not.toMatch(/re-?authenticate/i);
+    });
+
+    it('is not reported as an upstream failure, which would invite a retry', () => {
+      const error = fromHttpStatus(403, 'POST /qbs/graphql');
+
+      expect(error.kind).not.toBe('upstream');
+      expect(error.message).not.toContain('The upstream system failed');
+    });
+
+    it('carries no completeness, so a permission failure cannot be read as data', () => {
+      const error = fromHttpStatus(403, 'POST /qbs/graphql');
+
+      expect(error).not.toHaveProperty('completeness');
+      expect(error).not.toHaveProperty('complete');
+      expect(error).not.toHaveProperty('data');
+    });
+  });
+
+  describe('case: 424 is a retryable upstream failure of a GMA dependency', () => {
+    it('maps to upstream and is retryable, distinct in cause but not in agent action', () => {
+      const error = fromHttpStatus(424, 'GET /crs/accounts/{accountId}');
+
+      expect(error.kind).toBe('upstream');
+      expect(error.retryable).toBe(true);
+      expect(error.message).toContain('424');
     });
   });
 

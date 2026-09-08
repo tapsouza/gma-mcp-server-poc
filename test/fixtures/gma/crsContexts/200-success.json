@@ -1,0 +1,22 @@
+[
+  {
+    "contextId": "ctx-us-nj",
+    "contextCode": "NJ",
+    "contextName": "New Jersey"
+  },
+  {
+    "contextId": "ctx-us-pa",
+    "contextCode": "PA",
+    "contextName": "Pennsylvania"
+  },
+  {
+    "contextId": "ctx-us-co",
+    "contextCode": "CO",
+    "contextName": "Colorado"
+  },
+  {
+    "contextId": "ctx-ca-on",
+    "contextCode": "NXTCANBS",
+    "contextName": "Ontario"
+  }
+]

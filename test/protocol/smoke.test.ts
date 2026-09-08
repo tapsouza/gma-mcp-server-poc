@@ -48,17 +48,20 @@ describe('MCP protocol smoke', () => {
   });
 
   describe('tool discovery', () => {
-    it('lists EXACTLY the three curated tools, with resolvable schemas (FR-022)', async () => {
+    it('lists EXACTLY the curated tools, with resolvable schemas (FR-022)', async () => {
       const { client, close } = await connect();
 
       const { tools } = await client.listTools();
 
-      // Exactly three. The surface is curated, never generated from GMA's API, and
-      // expanding it is governed by Principle IV rather than by convenience.
+      // An EXACT list, deliberately. The surface is curated, never generated from
+      // GMA's API, and expanding it is governed by Principle IV rather than by
+      // convenience — so growth means editing this assertion, which is the reviewed
+      // act. Three catalogue tools plus the customer domain's five.
       expect(tools.map((t) => t.name).sort()).toEqual([
         'find_catalogue_entity',
         'get_catalogue_entity',
-        'list_instances'
+        'list_instances',
+        'list_jurisdiction_contexts'
       ]);
       for (const tool of tools) {
         expect(tool.description).toBeDefined();

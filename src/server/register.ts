@@ -3,6 +3,7 @@ import type { Config } from '../core/config.js';
 import { createGmaClient, type GmaClient } from '../core/gmaClient.js';
 import { createLogger, type Logger } from '../core/telemetry.js';
 import { registerCatalogueDomain } from '../domains/catalogue/index.js';
+import { registerCustomerDomain } from '../domains/customer/index.js';
 import { health } from './health.js';
 
 /**
@@ -41,10 +42,17 @@ export function buildServer({ config, client, logger }: BuildServerDeps): McpSer
     { name: SERVER_NAME, version: SERVER_VERSION },
     {
       instructions:
-        'Tools for querying the GMA betting catalogue. Every result carries a "completeness" ' +
-        'field: when "complete" is false, the answer was assembled from only some brand ' +
-        'instances, and you MUST relay the "caveat" text to the user rather than presenting ' +
-        'the data as the whole answer.'
+        'Tools for querying the GMA betting catalogue and FanDuel customer risk data. ' +
+        'Every result carries a "completeness" field with TWO independent failure axes, and ' +
+        'you MUST relay its "caveat" text to the user whenever "complete" is false rather ' +
+        'than presenting the data as the whole answer. The axes call for different actions: ' +
+        '"failedInstances" names sources that did not answer, so the list may be missing ROWS ' +
+        'and a narrowed retry may help; "unavailableComponents" names SECTIONS of the answer ' +
+        'that could not be retrieved, and retrying with different scoping will NOT help — ' +
+        'state what is absent instead. Customer results additionally distinguish an ' +
+        'unresolved jurisdiction match, which is NOT incompleteness, from a missing section, ' +
+        'which is. Never tell a user a customer was on default settings unless a tool says ' +
+        'the jurisdiction matched.'
     }
   );
 
@@ -71,7 +79,10 @@ export function buildServer({ config, client, logger }: BuildServerDeps): McpSer
 
   // Each domain registers its own tools. Adding a domain is additive — a new folder
   // and one more call here, with no rewrite of an existing domain (Principle III).
+  // Once a non-stdio transport exists these become `/mcp/catalogue` and
+  // `/mcp/customer`; today both register onto the one shared stdio server.
   registerCatalogueDomain(server, { config, client: gmaClient, logger: log });
+  registerCustomerDomain(server, { config, client: gmaClient, logger: log });
 
   return server;
 }

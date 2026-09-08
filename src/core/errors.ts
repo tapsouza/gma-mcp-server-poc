@@ -14,17 +14,25 @@ import { ToolError, type ErrorKind } from './types.js';
 const STATUS_TO_KIND: Readonly<Record<number, ErrorKind>> = Object.freeze({
   400: 'argument',
   401: 'auth',
+  // 403 is NOT `auth` and NOT `upstream`. Conflating it with `auth` sends the human
+  // to sign in again, which cannot help; reporting it as `upstream` marks it
+  // retryable, and a retry is guaranteed to fail (constitution Principle I).
+  403: 'forbidden',
   404: 'notFound',
+  // A dependency of GMA failed. Distinct upstream cause, same agent action.
+  424: 'upstream',
   500: 'upstream'
 });
 
 /**
- * Only `upstream` is retryable. `auth` needs a human to re-authenticate and
- * `argument` needs the agent to change its arguments — retrying either unchanged
- * just burns a request. `config` is fixed by the operator before startup.
+ * Only `upstream` is retryable. `auth` needs a human to re-authenticate, `forbidden`
+ * needs a human to request access, and `argument` needs the agent to change its
+ * arguments — retrying any of them unchanged just burns a request. `config` is fixed
+ * by the operator before startup.
  */
 const RETRYABLE: Readonly<Record<ErrorKind, boolean>> = Object.freeze({
   auth: false,
+  forbidden: false,
   argument: false,
   notFound: false,
   upstream: true,
@@ -34,6 +42,8 @@ const RETRYABLE: Readonly<Record<ErrorKind, boolean>> = Object.freeze({
 /** Guidance naming who must act, so the agent does not retry what it cannot fix. */
 const GUIDANCE: Readonly<Record<ErrorKind, string>> = Object.freeze({
   auth: 'The user must re-authenticate. Do not retry with different credentials, and do not report this as "no results found".',
+  forbidden:
+    'The identity is valid but lacks permission for this operation. Request access — do not sign in again, and do not retry.',
   argument:
     'Correct the arguments and try again; this does not need the user. If an instance code was rejected, call list_instances for the valid codes.',
   notFound: 'No entity exists with that identifier. Report the absence rather than retrying.',

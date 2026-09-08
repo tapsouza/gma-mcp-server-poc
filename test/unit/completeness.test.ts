@@ -5,6 +5,7 @@ import {
   fromHttpStatus,
   fromTimeoutWithPartialData,
   fromTooBroad,
+  withUnavailableComponents,
   type GmaEnvelope
 } from '../../src/core/completeness.js';
 import { OUTCOME_SEVERITY, type Completeness, type Outcome } from '../../src/core/types.js';
@@ -37,10 +38,13 @@ import instances206 from '../fixtures/gma/instances/206-partial.json' with { typ
  *
  *   1. `complete === true` iff `outcome === 'COMPLETE'`      (the equivalence)
  *   2. `failedInstances.length > 0` implies NOT `complete`     (one-directional)
- *   3. `caveat === null` iff `complete`
+ *   3. `unavailableComponents.length > 0` implies NOT `complete`  (one-directional)
+ *   4. `caveat === null` iff `complete`
  *
  * Clause 2 is the trap-prevention rule: you may never report failures and
- * completeness together. Its converse is what the document got wrong.
+ * completeness together. Its converse is what the document got wrong. Clause 3, added
+ * by feature 004, is the same rule for the SECOND axis — a composite answer missing a
+ * section is never complete, and the two axes are never merged into one another.
  */
 function assertInvariant(c: Completeness): void {
   expect(
@@ -52,6 +56,13 @@ function assertInvariant(c: Completeness): void {
     expect(
       c.complete,
       `invariant 2 violated: reported complete alongside failures ${JSON.stringify(c.failedInstances)}`
+    ).toBe(false);
+  }
+
+  if (c.unavailableComponents.length > 0) {
+    expect(
+      c.complete,
+      `invariant 3 violated: reported complete alongside missing section(s) ${JSON.stringify(c.unavailableComponents)}`
     ).toBe(false);
   }
 
@@ -407,6 +418,206 @@ describe('completeness', () => {
 
         expect(result.successfulInstances).toEqual(['urn:i:PP:PP']);
       });
+    });
+  });
+
+  describe('case: the second failure axis — unavailableComponents (Principle II, FR-026)', () => {
+    it('is present and empty on every verdict the HTTP path produces, including full success', () => {
+      // Both axes must ALWAYS be present in the structure — a schema where one
+      // appears only sometimes is a schema the model learns to ignore.
+      for (const verdict of [
+        fromHttpStatus(200, instances200 as GmaEnvelope),
+        fromHttpStatus(206, instances206 as GmaEnvelope),
+        complete(),
+        fromTooBroad(complete()),
+        fromTimeoutWithPartialData(['urn:i:PP:PP'])
+      ]) {
+        expect(verdict).toHaveProperty('unavailableComponents');
+        expect(verdict.unavailableComponents).toEqual([]);
+        assertInvariant(verdict);
+      }
+    });
+
+    it('marks an otherwise-complete result INCOMPLETE when a section is missing', () => {
+      // The case the axis exists for: every source answered, so a one-axis verdict
+      // would call this complete. It is not — a section of the answer is absent.
+      const result = withUnavailableComponents(complete(['urn:i:PP:PP']), [
+        'customerRiskConfiguration'
+      ]);
+
+      expect(result.complete).toBe(false);
+      expect(result.outcome).toBe('PARTIAL');
+      expect(result.unavailableComponents).toEqual(['customerRiskConfiguration']);
+      expect(result.failedInstances).toEqual([]);
+      assertInvariant(result);
+    });
+
+    it('is still complete: false with ZERO failed instances, which is the whole point', () => {
+      const result = withUnavailableComponents(complete(['urn:i:PP:PP']), ['betDetail']);
+
+      expect(result.failedInstances).toEqual([]);
+      expect(result.errors).toEqual([]);
+      expect(result.complete).toBe(false);
+      expect(result.caveat).not.toBeNull();
+    });
+
+    it('names the missing section in the caveat and tells the agent NOT to retry scoping', () => {
+      // The behavioural difference between the axes, asserted on the text the agent
+      // actually relays. A missing section that reads like a failed instance sends
+      // the agent retrying with narrower scoping, which cannot help — forever.
+      const result = withUnavailableComponents(complete(['urn:i:PP:PP']), [
+        'customerRiskConfiguration'
+      ]);
+
+      expect(result.caveat).toContain('INCOMPLETE');
+      expect(result.caveat).toContain('customer risk configuration');
+      expect(result.caveat?.toLowerCase()).toContain('relay');
+      expect(result.caveat?.toLowerCase()).toContain('do not retry with different scoping');
+      // And it must NOT claim an instance failed, because none did.
+      expect(result.caveat).not.toContain('only some brand instances');
+    });
+
+    it('names EVERY missing section, not just the first', () => {
+      const result = withUnavailableComponents(complete(), [
+        'customerRiskConfiguration',
+        'legCataloguePositions'
+      ]);
+
+      expect(result.unavailableComponents).toEqual([
+        'customerRiskConfiguration',
+        'legCataloguePositions'
+      ]);
+      expect(result.caveat).toContain('customer risk configuration');
+      expect(result.caveat).toContain('catalogue positions');
+    });
+
+    it('returns the base verdict unchanged for an empty component list', () => {
+      // So a tool can call this unconditionally rather than branching, which is what
+      // keeps the "always report what is missing" path from being skipped by accident.
+      const base = complete(['urn:i:PP:PP']);
+      const result = withUnavailableComponents(base, []);
+
+      expect(result.complete).toBe(true);
+      expect(result.unavailableComponents).toEqual([]);
+      expect(result).toEqual(base);
+    });
+
+    it('keeps a missing section separate from a failed instance when both occur', () => {
+      const result = withUnavailableComponents(fromHttpStatus(206, instances206 as GmaEnvelope), [
+        'jurisdictionContexts'
+      ]);
+
+      // Neither axis absorbs the other: the instance failure stays an instance
+      // failure and the missing section stays a missing section.
+      expect(result.failedInstances).toEqual(['urn:i:BF:BF']);
+      expect(result.unavailableComponents).toEqual(['jurisdictionContexts']);
+      expect(result.caveat).toContain('urn:i:BF:BF');
+      expect(result.caveat).toContain('jurisdiction context list');
+      assertInvariant(result);
+    });
+
+    it('deduplicates repeated component names', () => {
+      const result = withUnavailableComponents(
+        withUnavailableComponents(complete(), ['betDetail']),
+        ['betDetail']
+      );
+
+      expect(result.unavailableComponents).toEqual(['betDetail']);
+    });
+
+    it('preserves a worse outcome rather than downgrading it to PARTIAL', () => {
+      const result = withUnavailableComponents(fromTimeoutWithPartialData(['urn:i:PP:PP']), [
+        'betDetail'
+      ]);
+
+      expect(result.outcome).toBe('TIMEOUT_PARTIAL');
+      expect(result.unavailableComponents).toEqual(['betDetail']);
+      assertInvariant(result);
+    });
+
+    it('survives fromTooBroad, so a too-broad composite still names its missing sections', () => {
+      const result = fromTooBroad(
+        withUnavailableComponents(complete(['urn:i:PP:PP']), ['legCataloguePositions'])
+      );
+
+      expect(result.outcome).toBe('TOO_BROAD');
+      expect(result.unavailableComponents).toEqual(['legCataloguePositions']);
+      assertInvariant(result);
+    });
+
+    it('returns a frozen verdict, so no caller can empty the axis after the fact', () => {
+      const result = withUnavailableComponents(complete(), ['betDetail']);
+
+      expect(Object.isFrozen(result)).toBe(true);
+      expect(Object.isFrozen(result.unavailableComponents)).toBe(true);
+      expect(() => {
+        (result as { complete: boolean }).complete = true;
+      }).toThrow();
+    });
+  });
+
+  describe('case: aggregate unions the second axis independently (Principle II)', () => {
+    it('unions missing sections across hops', () => {
+      const result = aggregate([
+        withUnavailableComponents(complete(['urn:i:PP:PP']), ['customerRiskConfiguration']),
+        withUnavailableComponents(complete(['urn:i:BF:BF']), ['legCataloguePositions'])
+      ]);
+
+      expect(result.unavailableComponents).toEqual([
+        'customerRiskConfiguration',
+        'legCataloguePositions'
+      ]);
+      expect(result.complete).toBe(false);
+      assertInvariant(result);
+    });
+
+    it('deduplicates a section reported by more than one hop', () => {
+      const hop = withUnavailableComponents(complete(['urn:i:PP:PP']), ['betDetail']);
+      const result = aggregate([hop, hop, hop]);
+
+      expect(result.unavailableComponents).toEqual(['betDetail']);
+    });
+
+    it('marks the whole result incomplete when ONE hop was missing a section', () => {
+      // The composite case: hops 1 and 2 answered fully, hop 3's section is absent.
+      const result = aggregate([
+        fromHttpStatus(200, instances200 as GmaEnvelope),
+        complete(['urn:i:PP:PP']),
+        withUnavailableComponents(complete(), ['jurisdictionContexts'])
+      ]);
+
+      expect(result.complete).toBe(false);
+      expect(result.unavailableComponents).toEqual(['jurisdictionContexts']);
+      expect(result.failedInstances).toEqual([]);
+      assertInvariant(result);
+    });
+
+    it('never turns a missing section into a failed instance, or the reverse', () => {
+      const result = aggregate([
+        fromHttpStatus(206, instances206 as GmaEnvelope),
+        withUnavailableComponents(complete(), ['customerRiskConfiguration'])
+      ]);
+
+      expect(result.failedInstances).toEqual(['urn:i:BF:BF']);
+      expect(result.unavailableComponents).toEqual(['customerRiskConfiguration']);
+      expect(result.failedInstances).not.toContain('customerRiskConfiguration');
+      expect(result.unavailableComponents).not.toContain('urn:i:BF:BF');
+    });
+
+    it('is order-independent across hops for the second axis', () => {
+      const hops = [
+        withUnavailableComponents(complete(), ['betDetail']),
+        complete(['urn:i:PP:PP']),
+        withUnavailableComponents(complete(), ['jurisdictionContexts'])
+      ];
+
+      const forward = aggregate(hops);
+      const reversed = aggregate([...hops].reverse());
+
+      expect([...forward.unavailableComponents].sort()).toEqual(
+        [...reversed.unavailableComponents].sort()
+      );
+      expect(forward.complete).toBe(reversed.complete);
     });
   });
 });

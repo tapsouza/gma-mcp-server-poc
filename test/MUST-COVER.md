@@ -52,3 +52,42 @@ Every fixture in `fixtures/` is hand-crafted from the OpenAPI schema, as recorde
 [`fixtures/README.md`](./fixtures/README.md). `searchByName` has no `206` fixture because that
 operation does not declare one (research.md R2), and the timeout outcome has no fixture at all
 because a timeout produces no HTTP response (research.md R1).
+
+---
+
+## Feature 004 — the customer domain
+
+The constitution's v1.1.0 additions for composite and read-only tools are blocking, and
+quickstart.md 1b adds this feature's own seven. Rows are added per phase as tools land.
+
+### Shared `core` changes (Phase 2)
+
+| Case                                                                                                                | Named test block                                                                                                                               | File                        |
+| ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| A composite answer missing a section is reported via `unavailableComponents` and is never `complete: true` (SC-001) | `case: the second failure axis — unavailableComponents (Principle II, FR-026)`                                                                 | `unit/completeness.test.ts` |
+| The two completeness axes are never merged into one another                                                         | `case: aggregate unions the second axis independently (Principle II)` — "never turns a missing section into a failed instance, or the reverse" | `unit/completeness.test.ts` |
+| A missing section tells the agent NOT to retry with different scoping                                               | `case: the second failure axis …` — "names the missing section in the caveat and tells the agent NOT to retry scoping"                         | `unit/completeness.test.ts` |
+| Multi-hop aggregation where one hop's missing section flags the whole result                                        | `case: aggregate unions the second axis independently …` — "marks the whole result incomplete when ONE hop was missing a section"              | `unit/completeness.test.ts` |
+| `403` produces a non-retryable `forbidden` error the agent does not retry (SC-009)                                  | `case: 403 is forbidden, never auth, and never retried (Principle I, FR-028, SC-009)`                                                          | `unit/errors.test.ts`       |
+| `403` is never conflated with `auth`                                                                                | same block — "is its own kind, distinct from auth"                                                                                             | `unit/errors.test.ts`       |
+| `424` maps to a retryable `upstream` error                                                                          | `case: 424 is a retryable upstream failure of a GMA dependency`                                                                                | `unit/errors.test.ts`       |
+| Existing catalogue tests pass unmodified after the shared-type change (SC-012)                                      | Recorded as the T015 gate result in [tasks.md](../specs/004-customer-bet-tools/tasks.md)                                                       | whole suite                 |
+| Both new configuration bounds are optional with a default and validated                                             | `case: the customer-domain bounds are optional with a default (Principle V, FR-010, FR-023)`                                                   | `unit/config.test.ts`       |
+
+### `list_jurisdiction_contexts` (Phase 2)
+
+| Case                                                                       | Named test block                                                                                                              | File                                           |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Full success returns every jurisdiction, both completeness axes present    | `case: full success returns every jurisdiction with a complete verdict`                                                       | `integration/listJurisdictionContexts.test.ts` |
+| A **non-derivable** code survives the mapping — the tool's justification   | same block — "carries a NON-DERIVABLE code through unchanged" and "surfaces that non-derivable code in the mapped result"     | `integration/listJurisdictionContexts.test.ts` |
+| `401` → `auth`                                                             | `case: 401 is an auth error a human can act on (Principle I)`                                                                 | `integration/listJurisdictionContexts.test.ts` |
+| **`403` → `forbidden`, not retryable** (quickstart 1b marks this blocking) | `case: 403 is forbidden and NOT retryable, never conflated with auth (SC-009)`                                                | `integration/listJurisdictionContexts.test.ts` |
+| `500` → `upstream`, never an empty list                                    | `case: 500 is a retryable upstream error, not an empty list`                                                                  | `integration/listJurisdictionContexts.test.ts` |
+| Zero-match (an empty upstream list) is not an error                        | `case: a context with no usable code is dropped rather than fabricated` — "returns an empty list for an empty upstream array" | `integration/listJurisdictionContexts.test.ts` |
+| No upstream DTO vocabulary reaches the result or the description           | same blocks — "exposes no upstream DTO vocabulary in the result / to the model"                                               | `integration/listJurisdictionContexts.test.ts` |
+| The description instructs the agent to relay caveats (FR-009)              | `case: the description instructs the agent as Principle IV and FR-009 require`                                                | `integration/listJurisdictionContexts.test.ts` |
+
+**Not applicable, asserted rather than assumed**: this tool takes **no input**, so `400` /
+`argument`, too-broad, multi-match and unknown-scoping-code have no reachable path — there is no
+argument to malform and no query to narrow. `TIMEOUT_PARTIAL` is unreachable for the same reason
+it is for `list_instances`: one hop, so no earlier data can survive an abort.

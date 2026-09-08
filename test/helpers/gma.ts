@@ -15,7 +15,11 @@ export const TEST_TOKEN =
 export const OTHER_TOKEN =
   'eyJhbGciOiJSUzI1NiIsImtpZCI6Im90aGVyIn0.eyJzdWIiOiJqb2huLnJvZUBleGFtcGxlLmNvbSJ9.other-signature' as OperatorToken;
 
-/** A test config. Overrides let a test shorten the timeout or the candidate cap. */
+/**
+ * A test config. Overrides let a test shorten the timeout or the candidate cap — and,
+ * for the customer domain, drive a bound with a small value so reaching it can be
+ * asserted without building a 20-bet fixture.
+ */
 export function testConfig(overrides: Partial<Config> = {}): Config {
   return Object.freeze({
     gmaBaseUrl: GMA_BASE_URL,
@@ -23,6 +27,8 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     oktaIssuer: 'https://example.okta.invalid/oauth2/aus0',
     requestTimeoutMs: 30_000,
     maxCandidates: 25,
+    customerMaxBets: 20,
+    customerMaxEventResolutions: 10,
     logLevel: 'error',
     ...overrides
   });
