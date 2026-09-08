@@ -1,0 +1,1937 @@
+{
+  "data": {
+    "searchBets": {
+      "pageInfo": {
+        "count": 137,
+        "pages": 6
+      },
+      "results": [
+        {
+          "ids": {
+            "betId": "bet-000500",
+            "betReceiptId": "R-000500",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-25T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 10,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000501",
+            "betReceiptId": "R-000501",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-24T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 11,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000502",
+            "betReceiptId": "R-000502",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-23T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 12,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000503",
+            "betReceiptId": "R-000503",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-22T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 13,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000504",
+            "betReceiptId": "R-000504",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-21T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 14,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000505",
+            "betReceiptId": "R-000505",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-20T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 15,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000506",
+            "betReceiptId": "R-000506",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-19T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 16,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000507",
+            "betReceiptId": "R-000507",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-18T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 17,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000508",
+            "betReceiptId": "R-000508",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-17T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 18,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000509",
+            "betReceiptId": "R-000509",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-16T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 19,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000510",
+            "betReceiptId": "R-000510",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-15T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 20,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000511",
+            "betReceiptId": "R-000511",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-14T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 21,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000512",
+            "betReceiptId": "R-000512",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-13T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 22,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000513",
+            "betReceiptId": "R-000513",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-12T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 23,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000514",
+            "betReceiptId": "R-000514",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-11T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 24,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000515",
+            "betReceiptId": "R-000515",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-10T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 25,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000516",
+            "betReceiptId": "R-000516",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-09T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 26,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000517",
+            "betReceiptId": "R-000517",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-08T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 27,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000518",
+            "betReceiptId": "R-000518",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-07T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 28,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000519",
+            "betReceiptId": "R-000519",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-06T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 29,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000520",
+            "betReceiptId": "R-000520",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-05T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 30,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000521",
+            "betReceiptId": "R-000521",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-04T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 31,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000522",
+            "betReceiptId": "R-000522",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-03T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 32,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000523",
+            "betReceiptId": "R-000523",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-02T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 33,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ids": {
+            "betId": "bet-000524",
+            "betReceiptId": "R-000524",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-01T10:00:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 34,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

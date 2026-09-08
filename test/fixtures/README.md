@@ -113,6 +113,37 @@ identifier — the standing rule that no fixture holds a customer datum applies 
 There is deliberately **no `206`**: CRS publishes no partial-failure contract at all
 (research.md R2), and a `206` fixture would assert a response this surface never sends.
 
+### `qbsSearchBets/` — `POST /qbs/graphql` (the fixed `searchBets` document)
+
+Derived from `qbs-graphql-schema/graphql/schema.graphqls` — the `Bet`, `Leg`, `RiskInfo`,
+`WageInfo`, `Ids`, `CatalogEntity`, `EntityIds` and `PageInfo` types — plus the observed
+`200`-with-`errors[]` shape (`BetSearchClient.java:52`).
+
+Reading that schema confirmed three facts this feature depends on:
+
+- **`sort` exists** on `input RequestParameters`, with `enum SortField { PLACEMENT_DATE, … }`,
+  which retires one of the spec's UNVERIFIED assumptions (research.md R6).
+- **Mutations exist** — `createBetNote`, `deleteBetNote`, `pinBetNote`, `unpinBetNote` — which is
+  why FR-024's read-only guard has to be structural rather than inferred from the request verb.
+- **The four `searchBy*` queries are `@deprecated`** in favour of `searchBets`, so FR-015 requires
+  the current one.
+
+| Fixture                            | Outcome                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`200-success-with-errors.json`** | **THE MANDATORY ONE.** HTTP `200` carrying GraphQL `errors[]` at `results[0].riskInfo` and `results[0].legs`, with both fields left `null` while `numberOfLines.total` survives as 3 — so reporting `legCount: 0` would be a distinguishable second defect. The constitution calls this "the single most important" fixture on this surface |
+| `200-single-bet.json`              | one fully-populated single-leg bet                                                                                                                                                                                                                                                                                                          |
+| `200-multi-leg-bet.json`           | three legs where **legs 1 and 3 share one event**, so distinct-event dedupe is provable (SC-013)                                                                                                                                                                                                                                            |
+| `200-multiple-matches.json`        | two bets for one receipt identifier → all candidates, zero further resolution work (FR-022)                                                                                                                                                                                                                                                 |
+| `200-no-match.json`                | zero matches → `kind: 'none'`, which is neither an error nor a caveat (FR-012)                                                                                                                                                                                                                                                              |
+| `200-over-limit.json`              | 25 bets with `pageInfo.count: 137`, above the default cap of 20 → `limitReached: true`, never silent truncation (FR-010). Placement dates descend, so the post-retrieval sort is observable                                                                                                                                                 |
+| `401-unauthorized.json`            | identity invalid or expired                                                                                                                                                                                                                                                                                                                 |
+| `403-forbidden.json`               | permission absent → `forbidden`, NOT retryable (SC-009)                                                                                                                                                                                                                                                                                     |
+| `500-server-error.json`            | nothing usable                                                                                                                                                                                                                                                                                                                              |
+
+There is deliberately **no `206`**: this surface signals partial failure in a `200` **body**, not
+in a status code, which is precisely what makes it dangerous and why the success-carrying-errors
+fixture is mandatory instead.
+
 ### `crsContexts/` — `GET /crs/contexts`
 
 The response is a **bare JSON array** of `ContextEntity`, not an object with a `contexts` key —

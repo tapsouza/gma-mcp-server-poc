@@ -72,11 +72,38 @@ function dedupeErrors(errors: readonly InstanceError[]): InstanceError[] {
   return [...seen.values()];
 }
 
-/** Translate the upstream `errors[]` shape into the project's vocabulary. */
+/**
+ * Translate the upstream `errors[]` shape into the project's vocabulary.
+ *
+ * ## Why this is guarded rather than a straight map
+ *
+ * `errors` is a field name several unrelated GMA surfaces use for different things.
+ * On v5 it is a list of PER-INSTANCE failures (`{ configSource, message }`). On
+ * `POST /qbs/graphql` it is a list of GRAPHQL errors, which are a different shape,
+ * belong to the OTHER completeness axis (a missing section, not a failed source), and
+ * carry upstream message text that may echo an account identifier.
+ *
+ * Mapping a GraphQL error into `InstanceError` would therefore do three wrong things
+ * at once: report the wrong axis, so the agent retries scoping that cannot help
+ * (Principle II); interpolate unvetted upstream text into a caveat a human reads
+ * (Principle V, FR-029); and describe the answer as "assembled from only some brand
+ * instances" when no instance failed at all.
+ *
+ * So an entry counts as a per-instance error only when it is recognisably one: it
+ * names a `configSource`, or the body is recognisably a v5 envelope because it carries
+ * the instance fields. A QBS body carries neither.
+ */
 function toInstanceErrors(envelope: GmaEnvelope): InstanceError[] {
+  const isV5Envelope =
+    envelope.successfulConfigSources !== undefined || envelope.failedConfigSources !== undefined;
+
   return (envelope.errors ?? [])
     .filter((error): error is { configSource?: string | null; message?: string | null } =>
       Boolean(error)
+    )
+    .filter(
+      (error) =>
+        isV5Envelope || (typeof error.configSource === 'string' && error.configSource.length > 0)
     )
     .map((error) => ({
       instance: error.configSource ?? 'unknown',

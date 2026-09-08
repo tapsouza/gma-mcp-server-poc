@@ -123,3 +123,47 @@ identifier argument, so too-broad (no query to narrow), multi-match (an account 
 account), and `TIMEOUT_PARTIAL` (no earlier hop whose data could survive an abort) are all
 structurally unreachable. There is deliberately no `206` case: CRS declares no partial-failure
 contract, and asserting one would be fiction (research.md R2).
+
+### `find_customer_bets` — User Story 2 (Phase 4)
+
+| Case                                                                                    | Named test block                                                                                                                                                            | File                                                             |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **A `200` carrying reported errors is marked INCOMPLETE** (FR-011, SC-002)              | `case: scenario 4 — a 200 carrying errors[] is INCOMPLETE (FR-011, SC-002)` and `case: a 200 carrying errors[] names the unavailable sections (FR-011, SC-002)`             | `integration/findCustomerBets.test.ts`, `unit/qbsErrors.test.ts` |
+| That case is reported via `unavailableComponents`, **never** `failedInstances` (FR-026) | same blocks — "reports it through unavailableComponents and NOT through failedInstances" and `case: the result is unavailableComponents and NEVER failedInstances (FR-026)` | `integration/findCustomerBets.test.ts`, `unit/qbsErrors.test.ts` |
+| A clean `200` marks nothing unavailable, however sparse                                 | `case: a CLEAN 200 marks nothing unavailable, however sparse (Principle II)`                                                                                                | `unit/qbsErrors.test.ts`                                         |
+| **Zero identifiers** → `argument` naming all three choices (FR-008, SC-008)             | `case: zero or two identifiers is an argument error naming the choices (FR-008, SC-008)`                                                                                    | `integration/findCustomerBets.test.ts`                           |
+| **Two identifiers** → `argument` naming which kinds, echoing no value (FR-030)          | same block — "rejects TWO identifiers" and "echoes NO supplied value in either message (FR-030)"                                                                            | `integration/findCustomerBets.test.ts`                           |
+| **`kind: 'none'`** for nothing matched — not an error, not a caveat (FR-012)            | `case: scenario 3 — nothing matched is "none", not an error and not a caveat (FR-012)`                                                                                      | `integration/findCustomerBets.test.ts`                           |
+| **The bound is REPORTED, not silently truncated** (FR-010)                              | `case: the configured bound is REPORTED, never silently truncating (FR-010)`                                                                                                | `integration/findCustomerBets.test.ts`                           |
+| A caller may narrow the cap but never widen it (Principle V)                            | same block — "lets a caller ask for FEWER but never for more than the configured cap"                                                                                       | `integration/findCustomerBets.test.ts`                           |
+| `orderingCaveat` present on **every** success (FR-010)                                  | `case: the ordering caveat is present on EVERY success (FR-010)` — parameterised over all five fixtures                                                                     | `integration/findCustomerBets.test.ts`                           |
+| `sort: { PLACEMENT_DATE, DESC }` requested upstream (research.md R6)                    | `case: scenario 1 …` — "requests sort PLACEMENT_DATE DESC upstream"                                                                                                         | `integration/findCustomerBets.test.ts`                           |
+| **No `?instance=` is sent** (FR-025, constitution v1.2.0)                               | `case: scenario 1 …` — "sends NO instance query parameter" (observed URL via `requestRecorder`)                                                                             | `integration/findCustomerBets.test.ts`                           |
+| **No returned bet carries a staff-authored note** (FR-004)                              | `case: NO returned bet carries a staff-authored note (FR-004)`                                                                                                              | `unit/betProjection.test.ts`                                     |
+| A receipt identifier searches directly, with no manual conversion                       | `case: scenario 2 — a receipt identifier searches directly, no conversion needed`                                                                                           | `integration/findCustomerBets.test.ts`                           |
+| **`403` → `forbidden`, not retryable** (SC-009)                                         | `case: scenario 5 — insufficient permission is forbidden and not retryable (SC-009)`                                                                                        | `integration/findCustomerBets.test.ts`                           |
+| `401` → `auth`; `500` → `upstream`, never an empty bet list                             | same block — "is distinct from the 401 outcome" and "maps a 500 to a retryable upstream error"                                                                              | `integration/findCustomerBets.test.ts`                           |
+| No upstream error TEXT reaches the caveat, which could echo an identifier (FR-029)      | `case: scenario 4 …` — "surfaces no upstream error TEXT" and `case: no upstream error text is ever surfaced (Principle V, FR-029)`                                          | `integration/findCustomerBets.test.ts`, `unit/qbsErrors.test.ts` |
+| R9's chosen `entityIds` member is recorded per leg                                      | `case: R9 — which entityIds member supplied the event id is RECORDED`                                                                                                       | `unit/betProjection.test.ts`                                     |
+| **No caller value can reach an upstream query or path** (SC-010)                        | `read-only by construction (SC-010)` — 28 tests                                                                                                                             | `unit/readOnly.test.ts`                                          |
+
+**A defect this suite caught in `core`.** `completeness.ts` mapped _any_ top-level `errors[]` into
+`InstanceError`, which is correct for the v5 envelope and wrong for QBS: a GraphQL error is the
+other axis entirely, and its message text can echo an account identifier. So a QBS
+success-carrying-errors response produced a caveat that (a) claimed brand instances had failed when
+none had, and (b) interpolated unvetted upstream text into a sentence a human reads. `errors[]` is
+now recognised as per-instance only when the entry names a `configSource` or the body is
+recognisably a v5 envelope. The test that caught it is
+`case: scenario 4 …` → "surfaces no upstream error TEXT, which could echo an identifier".
+
+**The read-only gate is mutation-verified.** Interpolating a caller value into the request path
+fails 3 of its 28 tests; adding an `instance` input to a schema fails 2. It also strips comments
+before asserting, deliberately: these modules explain at length why `?instance=` must never be sent
+and why the document contains no mutation, and a raw-source scan would flag its own rationale and
+pressure someone into deleting the explanation to make the gate pass.
+
+**Not applicable, asserted rather than assumed**: `find_customer_bets` is one hop, so
+`TIMEOUT_PARTIAL` is unreachable. Too-broad does not arise: the result cap is a configured bound
+that is reported (`limitReached`), which is a different signal from "your query was too wide to
+answer" — there is no query to narrow. There is no `206` case: QBS signals partial failure in a
+`200` BODY, which is what `200-success-with-errors.json` covers.

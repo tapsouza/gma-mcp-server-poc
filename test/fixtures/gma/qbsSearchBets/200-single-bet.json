@@ -1,0 +1,89 @@
+{
+  "data": {
+    "searchBets": {
+      "pageInfo": {
+        "count": 1,
+        "pages": 1
+      },
+      "results": [
+        {
+          "ids": {
+            "betId": "bet-000111",
+            "betReceiptId": "R-000111",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-01T18:30:00.000Z",
+          "betType": "SINGLE",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 1
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 125,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "W",
+              "legPrice": {
+                "numerator": 5,
+                "denominator": 2
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gbp-sport-9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gbp-comp-9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gbp-event-9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gbp-market-9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gbp-sel-9401"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

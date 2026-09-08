@@ -59,6 +59,7 @@ describe('MCP protocol smoke', () => {
       // act. Three catalogue tools plus the customer domain's five.
       expect(tools.map((t) => t.name).sort()).toEqual([
         'find_catalogue_entity',
+        'find_customer_bets',
         'get_catalogue_entity',
         'get_customer_risk_profile',
         'list_instances',

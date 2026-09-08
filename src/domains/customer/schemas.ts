@@ -240,3 +240,180 @@ export type LiabilityGroupRef = z.infer<typeof liabilityGroupRefSchema>;
 export type CataloguePathNode = z.infer<typeof cataloguePathNodeSchema>;
 export type HierarchyOverride = z.infer<typeof hierarchyOverrideSchema>;
 export type CustomerRiskConfiguration = z.infer<typeof customerRiskConfigurationSchema>;
+
+/**
+ * A named catalogue entity referenced by a bet leg (data-model.md section 6b).
+ *
+ * `id` comes from the leg's upstream identifier bag, and WHICH member supplied it is
+ * an unverified assumption (research.md R9) — which is why the composite reports
+ * `resolvedVia` in its result rather than leaving the guess invisible.
+ */
+export const namedEntitySchema = z.object({
+  name: z.string(),
+  id: z
+    .string()
+    .nullable()
+    .describe('Identifier for this entity, or null when the bet carried no usable one.')
+});
+
+/**
+ * One selection within a bet (data-model.md section 6b).
+ *
+ * NOTE what a leg does NOT carry: a risk-side catalogue level. `sport` / `competition`
+ * / `event` / `market` / `selection` is a DIFFERENT TREE from the
+ * `SUPERCLASS` / `SUBCLASS` / `EVENT_TYPE` / `MARKET_TYPE` levels risk overrides use
+ * (research.md R5). Bridging them requires resolving the event, which is what
+ * `get_bet_risk_context` exists to do — so do not attempt to match a leg to an
+ * override yourself from this shape.
+ */
+export const betLegSchema = z
+  .object({
+    legNumber: z.number(),
+    sport: namedEntitySchema,
+    competition: namedEntitySchema,
+    event: namedEntitySchema,
+    market: namedEntitySchema.nullable(),
+    selection: namedEntitySchema.nullable(),
+    placedInPlay: z.boolean().nullable().describe('Whether the leg was placed while in play.'),
+    price: z
+      .object({ numerator: z.number(), denominator: z.number() })
+      .nullable()
+      .describe('The fractional price this leg was struck at.'),
+    result: z
+      .enum(['NONE', 'WIN', 'PLACE', 'LOSE', 'VOID'])
+      .nullable()
+      .describe('Outcome of this leg; null when not yet resulted.')
+  })
+  .describe(
+    'One selection within a bet. Carries the catalogue entities it refers to, but NOT a risk-side catalogue level — those live in a different tree.'
+  );
+
+/**
+ * The risk figures actually APPLIED to a bet (data-model.md section 6a).
+ *
+ * Bet-level, never per-leg. And their DERIVATION IS NOT AVAILABLE to this system
+ * (FR-017): they are computed by GMA's downstream pricing and risk engine, whose
+ * formula is not exposed. The schema deliberately carries no field that would let a
+ * caller believe otherwise.
+ */
+export const appliedRiskFiguresSchema = z
+  .object({
+    stakeFactor: z.number().nullable(),
+    liabilityGroup: z
+      .string()
+      .nullable()
+      .describe(
+        "The liability group applied, as a bare string. Whether this corresponds to a configured group's code or its description is NOT verified upstream, which is why any comparison against a configuration reports both values."
+      ),
+    maxBet: z.number().nullable().describe('Maximum stake for this customer on a selection.'),
+    maxValuePercent: z
+      .number()
+      .nullable()
+      .describe('Percentage of the maximum the customer could have staked on this bet.'),
+    cumulativeMaxPercent: z.number().nullable(),
+    overlayMaxPercent: z.number().nullable()
+  })
+  .describe(
+    'The risk figures the upstream pricing system ACTUALLY USED for this bet. Bet-level, not per-leg. HOW they were derived is not available to this system and MUST NOT be explained or reconstructed.'
+  );
+
+/** Monetary amounts for a bet (data-model.md section 6). */
+export const wagerAmountsSchema = z.object({
+  stake: z.number(),
+  currency: z.string().describe('Three-letter currency code.'),
+  potentialPayout: z.number().nullable(),
+  winnings: z.number().nullable(),
+  refunds: z.number().nullable()
+});
+
+/**
+ * The curated risk projection of one bet (data-model.md section 6, FR-009).
+ *
+ * A fixed subset of the ~200 fields the upstream document can request. Two omissions
+ * are requirements, not curation: staff-authored notes (FR-004) and settlement
+ * operators' names and comments (Principle V) are not requested at all.
+ */
+export const betSchema = z
+  .object({
+    betId: z.string(),
+    receiptId: z
+      .string()
+      .nullable()
+      .describe('The reference a customer quotes. You can search by this directly.'),
+    accountId: z.string(),
+    placedAt: z.string().describe('When the bet was placed, ISO 8601.'),
+    status: z.string(),
+    betType: z.string(),
+    jurisdiction: z
+      .string()
+      .nullable()
+      .describe('The jurisdiction the bet was placed in, as reported by the bet itself.'),
+    catalogueInstanceId: z.string().nullable(),
+    legCount: z.number().describe('How many legs the bet has.'),
+    appliedRisk: appliedRiskFiguresSchema.nullable(),
+    wager: wagerAmountsSchema,
+    legs: z.array(betLegSchema)
+  })
+  .describe('A risk-shaped view of one placed bet.');
+
+/**
+ * Input of `find_customer_bets` — EXACTLY ONE identifier (FR-008).
+ *
+ * All three are optional at the schema level and the exactly-one rule is enforced in
+ * the tool, so the error can name all three choices and describe the mistake. A zod
+ * union would reject with a shape message the agent cannot act on as precisely.
+ *
+ * Note what is absent: no `instance`. QBS's `?instance=` is ROUTING, not scoping, and
+ * constitution v1.2.0 forbids both sending it while multi-instance routing is disabled
+ * and ever exposing it as a tool argument (FR-025).
+ */
+export const findCustomerBetsInputSchema = {
+  accountId: z.string().min(1).optional().describe("Find all of one customer's bets."),
+  betId: z.string().min(1).optional().describe('Find one bet by its internal identifier.'),
+  receiptId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Find one bet by the receipt reference a customer quotes. No conversion to an internal identifier is needed.'
+    ),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      "Maximum bets to return. Omit to use this deployment's configured cap; a larger value is clamped to it and the clamp is reported."
+    )
+};
+
+/** Output of `find_customer_bets` — a discriminated union on `kind` (FR-012). */
+export const findCustomerBetsOutputSchema = {
+  kind: z
+    .enum(['bets', 'none'])
+    .describe(
+      'bets: at least one bet matched. none: nothing matched — this is NOT an error and NOT an incomplete result. Report the absence and do not retry.'
+    ),
+  bets: z.array(betSchema).optional().describe('Present only when kind is "bets".'),
+  totalMatched: z
+    .number()
+    .optional()
+    .describe('How many bets matched upstream in total, which may exceed the number returned.'),
+  orderingCaveat: z
+    .string()
+    .describe(
+      'ALWAYS present. Relay it to the user: these are the first N bets of the upstream result set, most recent first, which may not be the globally most recent set.'
+    ),
+  limitReached: z
+    .boolean()
+    .describe(
+      'True when the configured cap truncated the set. When true, say so — do not present the returned bets as all of them.'
+    ),
+  completeness: completenessSchema
+};
+
+export type NamedEntity = z.infer<typeof namedEntitySchema>;
+export type BetLeg = z.infer<typeof betLegSchema>;
+export type AppliedRiskFigures = z.infer<typeof appliedRiskFiguresSchema>;
+export type WagerAmounts = z.infer<typeof wagerAmountsSchema>;
+export type Bet = z.infer<typeof betSchema>;

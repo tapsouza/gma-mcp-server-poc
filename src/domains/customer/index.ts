@@ -6,10 +6,13 @@ import type { GmaClient } from '../../core/gmaClient.js';
 import { extractOperatorToken, type RequestIdentitySource } from '../../core/identity.js';
 import type { Logger } from '../../core/telemetry.js';
 import {
+  findCustomerBetsInputSchema,
+  findCustomerBetsOutputSchema,
   getCustomerRiskProfileInputSchema,
   getCustomerRiskProfileOutputSchema,
   listJurisdictionContextsOutputSchema
 } from './schemas.js';
+import { FIND_CUSTOMER_BETS_DESCRIPTION, findCustomerBets } from './tools/findCustomerBets.js';
 import {
   GET_CUSTOMER_RISK_PROFILE_DESCRIPTION,
   getCustomerRiskProfile
@@ -110,7 +113,7 @@ export function toSuccessResult(payload: Record<string, unknown>): CallToolResul
 
 /** Register every customer tool on the given server. */
 export function registerCustomerDomain(server: McpServer, deps: DomainDeps): void {
-  const { client, logger } = deps;
+  const { client, config, logger } = deps;
 
   server.registerTool(
     'list_jurisdiction_contexts',
@@ -189,6 +192,59 @@ export function registerCustomerDomain(server: McpServer, deps: DomainDeps): voi
       } catch (error) {
         logger.error({
           tool: 'get_customer_risk_profile',
+          errorKind: isToolError(error) ? error.kind : 'upstream',
+          latencyMs: Date.now() - startedAt,
+          event: 'tool.error'
+        });
+        return toErrorResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    'find_customer_bets',
+    {
+      title: "Find a customer's bets",
+      description: FIND_CUSTOMER_BETS_DESCRIPTION,
+      inputSchema: findCustomerBetsInputSchema,
+      outputSchema: findCustomerBetsOutputSchema,
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async (args, extra) => {
+      const startedAt = Date.now();
+      try {
+        const token = extractOperatorToken(extra as RequestIdentitySource);
+        // The cap comes from CONFIGURATION, never from the agent. `args.limit` may
+        // only narrow it (Principle V).
+        const result = await findCustomerBets(client, config.customerMaxBets, token, {
+          accountId: args.accountId,
+          betId: args.betId,
+          receiptId: args.receiptId,
+          limit: args.limit
+        });
+
+        logger.info({
+          tool: 'find_customer_bets',
+          // `resolution` records WHICH KIND of answer this was, not which identifier
+          // was searched — that value is personal data.
+          resolution: result.kind,
+          matchCount: result.bets?.length ?? 0,
+          aggregateOutcome: result.completeness.outcome,
+          latencyMs: Date.now() - startedAt,
+          event: 'tool.success'
+        });
+
+        return toSuccessResult({
+          kind: result.kind,
+          ...(result.bets === undefined ? {} : { bets: result.bets }),
+          ...(result.totalMatched === undefined ? {} : { totalMatched: result.totalMatched }),
+          orderingCaveat: result.orderingCaveat,
+          limitReached: result.limitReached,
+          completeness: result.completeness
+        });
+      } catch (error) {
+        logger.error({
+          tool: 'find_customer_bets',
           errorKind: isToolError(error) ? error.kind : 'upstream',
           latencyMs: Date.now() - startedAt,
           event: 'tool.error'
