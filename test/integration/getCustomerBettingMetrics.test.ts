@@ -195,7 +195,7 @@ describe('get_customer_betting_metrics (Story 4, P4)', () => {
       await getCustomerBettingMetrics(deps(), TEST_TOKEN, {
         accountId: ACCOUNT,
         aggregation: 'HIERARCHY_ENTITY',
-        hierarchy: { level: 'EVENT_TYPE', entityIds: ['3307'] }
+        hierarchy: { level: 'EVENT_TYPE', catalogueEntityIds: ['3307'] }
       });
 
       expect(recorder.seen[0]!.body).toMatchObject({ hierarchyEntity: { EVENTTYPE: ['3307'] } });

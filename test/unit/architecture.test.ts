@@ -209,4 +209,76 @@ describe('architecture invariants', () => {
       expect(stdoutWriters.map((f) => f.path)).toEqual([]);
     });
   });
+  describe('case: no upstream DTO vocabulary reaches an LLM-facing schema (Principle IV)', () => {
+    /**
+     * The schema files are the model's whole view of this server. Upstream names leaking
+     * into one is not a cosmetic problem: `configSource`, `entityIds` and `hierarchyGroups`
+     * carry upstream's own semantics, and a model shown them will reason about the upstream
+     * system rather than about the curated one — then narrate that reasoning to an operator.
+     *
+     * Each name below is one a mapper legitimately handles; the rule is that the mapper is
+     * where it STOPS. Asserted against the schema files rather than the whole domain, so a
+     * mapping module can still name what it translates.
+     */
+    const UPSTREAM_NAMES = [
+      'configSource',
+      'contextId',
+      'entityIds',
+      'hierarchyGroups',
+      'riskInfo',
+      'wageInfo',
+      'EVENTTYPE',
+      'betNotesDetails',
+      'vipManager',
+      'numberOfLines',
+      'betReceiptId',
+      'aggregationMode',
+      'gpEligibility',
+      'birDelay',
+      'gmltl'
+    ];
+
+    const schemaFiles = files.filter(({ path }) => path.endsWith('schemas.ts'));
+
+    it('has schema files to inspect', () => {
+      // Both domains, so a future domain that forgets one cannot pass by being absent.
+      expect(schemaFiles.map((f) => f.path).sort()).toEqual([
+        'domains/catalogue/schemas.ts',
+        'domains/customer/schemas.ts'
+      ]);
+    });
+
+    it.each(UPSTREAM_NAMES)('exposes no upstream name %s in any schema', (name) => {
+      for (const { path, source } of schemaFiles) {
+        expect(stripComments(source), `${path} exposes the upstream name ${name}`).not.toContain(
+          name
+        );
+      }
+    });
+
+    it('guards the guard: each name IS translated somewhere outside a schema', () => {
+      // The complement of the rule above, and the thing that keeps it from passing
+      // vacuously: a name absent from the whole codebase would satisfy the assertion
+      // above while proving nothing. Each of these must appear in a NON-schema module,
+      // which is where translation belongs.
+      //
+      // `configSource` lives in `core/completeness.ts` rather than a domain, because the
+      // v5 envelope's per-instance failure list is a core concern — which is itself the
+      // reason the customer domain must not restate the name.
+      const translationCode = files
+        .filter(({ path }) => !path.endsWith('schemas.ts'))
+        .map(({ source }) => stripComments(source))
+        .join('\n');
+
+      // `vipManager` is deliberately NOT in this list. It is excluded by ABSENCE from the
+      // upstream interface, so there is nothing to translate and nothing to find here —
+      // its exclusion is proved instead by a fixture that carries it and a test asserting
+      // it reaches no caller (`unit/metricsMapping.test.ts`).
+      for (const name of ['configSource', 'entityIds', 'hierarchyGroups', 'riskInfo']) {
+        expect(translationCode, `${name} is translated nowhere — is the guard vacuous?`).toContain(
+          name
+        );
+      }
+    });
+  });
 });

@@ -117,16 +117,22 @@ function baseEnv(): NodeJS.ProcessEnv {
 }
 
 describe('capability discovery over a real child process (FR-003)', () => {
-  it('discovers EXACTLY the three curated capabilities', async () => {
+  it('discovers EXACTLY the eight curated capabilities', async () => {
     const child = await session();
 
-    // Pinned to match what `test/protocol/smoke.test.ts:58` asserts server-side. If the
+    // Pinned to match what `test/protocol/smoke.test.ts` asserts server-side. If the
     // two ever disagree, the harness is driving a stale `dist/` — which for a tool whose
     // purpose is drawing conclusions about the server is the worst available failure.
+    // Three catalogue tools plus the customer domain's five (feature 004).
     expect(Object.keys(child.tools).sort()).toEqual([
       'find_catalogue_entity',
+      'find_customer_bets',
+      'get_bet_risk_context',
       'get_catalogue_entity',
-      'list_instances'
+      'get_customer_betting_metrics',
+      'get_customer_risk_profile',
+      'list_instances',
+      'list_jurisdiction_contexts'
     ]);
   });
 

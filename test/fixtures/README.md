@@ -162,6 +162,57 @@ There is deliberately **no `206`** and no `400` fixture: `/crs/**` is a raw forw
 declares no partial-failure contract at all (research.md R2), and this operation takes no
 argument to malform.
 
+### `events/` — `GET /v5/events/{id}`
+
+The composite's fourth hop, and the operation whose fixtures nobody owned before this feature —
+the gap the SC-011 audit exists to catch. Note the **`sources`** parameter: this operation
+declares its instance scoping as `sources`, not `instancesList` (`api_catalogue.yaml`,
+`getEventById` → `sourcesParam`), and a wrong name is silently ignored rather than rejected.
+
+The three id/name pairs are chosen so the **FR-019 join is provable**: `3` / `7` / `3307` are the
+same entities the `crsAccounts/` overrides name, stated here as URNs (`urn:sbk:pc:spc:gpd:3`) and
+there bare (`"3"`), which is how the two systems really differ. A fixture that used one vocabulary
+on both sides would have let a join that cannot work pass.
+
+| Fixture                 | Outcome                                                                                                                                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `200-success.json`      | an `Event` with all three required id/name pairs → the leg resolves and its overrides are in scope                                                                                                |
+| `200-second-event.json` | a **different** event, so a multi-leg bet's distinct-event dedupe is observable as two calls rather than three (SC-013)                                                                           |
+| `206-partial.json`      | **the one that matters most**: one instance answered, one failed → the WHOLE composite becomes `PARTIAL`, and the failure is a `failedInstance` (retry may help), never an `unavailableComponent` |
+| `400-bad-request.json`  | a malformed identifier → `argument`                                                                                                                                                               |
+| `401-unauthorized.json` | identity invalid or expired → human re-authenticates                                                                                                                                              |
+| `404-not-found.json`    | no such event → the leg is a NAMED unresolved leg, never "no overrides apply"                                                                                                                     |
+| `500-server-error.json` | nothing usable → the leg is unresolved and `legCataloguePositions` is reported missing                                                                                                            |
+
+There is no `403` fixture: this is a v5 catalogue read, and the `403` path documented in
+research.md R10 is specific to the QBS surface's bet-note operations.
+
+### `customerMetrics/` — `POST /accounts/{accountId}/metrics`
+
+The **`POST`** variant deliberately: the `GET` is `deprecated: true` (FR-015). Every `200` fixture
+carries `vipManager` and the ~20 promo, device-link and internal-scoring measures **on purpose** —
+a fixture that omitted them could not prove the exclusion, only assume it (Principle V).
+
+Note the `400`: `customer-metrics.yaml` declares it as a `oneOf` over **three** shapes, so three
+fixtures are needed to cover one status code.
+
+| Fixture                                | Outcome                                                                                                                                                                                              |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `200-by-bet-type.json`                 | `BET_TYPE` aggregation, with lifetime and filtered totals that DIFFER, so conflating them is observable                                                                                              |
+| `200-by-hierarchy-entity.json`         | `HIERARCHY_ENTITY`, whose rows state `EVENT_TYPE` while the REQUEST body wants `EVENTTYPE` — both spellings of one level (R12)                                                                       |
+| `200-by-timeframe.json`                | `TIMEFRAME`, so all three `keyKind` discriminator values are exercised                                                                                                                               |
+| `400-multiple-hierarchy-levels.json`   | `MULTIPLE_HIERARCHY_LEVELS_NOT_COMBINABLE` → a hint saying to choose one level                                                                                                                       |
+| `400-too-many-hierarchy-entities.json` | `TOO_MANY_HIERARCHY_ENTITIES` → a hint saying to ask for fewer or aggregate broader                                                                                                                  |
+| `400-account-identifier-missing.json`  | `ACCOUNT_IDENTIFIER_MISSING` → a hint naming the argument                                                                                                                                            |
+| `400-data-api-error.json`              | the third `400` shape, carrying **no** `errorCode` and a `message` that echoes the account identifier — so the "upstream text never reaches the agent" rule is provable rather than assumed (FR-029) |
+| `401-unauthorized.json`                | identity invalid or expired → human re-authenticates                                                                                                                                                 |
+| `500-server-error.json`                | nothing usable → `upstream`, and the message names the path TEMPLATE, not the interpolated path                                                                                                      |
+
+There is deliberately **no `206`**: this operation declares only `200`, `400`, `401` and `500`, so
+it has no partial-failure contract to model. That is the same conclusion as CRS but for a different
+reason — CRS is an undeclared proxy, whereas this surface declares its statuses and simply has no
+partial among them.
+
 ## The timeout outcome has no fixture, by design
 
 `REQUEST_TIMEOUT` does not exist on the v5 surface (research.md R1): a timeout produces **no HTTP

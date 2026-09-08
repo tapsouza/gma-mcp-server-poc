@@ -63,7 +63,7 @@ export function toMetricsRequestBody(request: MetricsRequest): Record<string, un
   if (request.jurisdictions !== undefined) body.contexts = [...request.jurisdictions];
   if (request.hierarchy !== undefined) {
     body.hierarchyEntity = {
-      [REQUEST_LEVEL[request.hierarchy.level]]: [...request.hierarchy.entityIds]
+      [REQUEST_LEVEL[request.hierarchy.level]]: [...request.hierarchy.catalogueEntityIds]
     };
   }
 

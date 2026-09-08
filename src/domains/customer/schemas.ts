@@ -598,7 +598,9 @@ export const hierarchyFilterSchema = z
     level: z
       .enum(['SUPERCLASS', 'SUBCLASS', 'EVENT_TYPE'])
       .describe('Exactly one level per request — entities from several cannot be combined.'),
-    entityIds: z
+    // NOT `entityIds`: QBS uses that name for a leg's four-member identifier bag, and a
+    // model shown one name for two different things will conflate them.
+    catalogueEntityIds: z
       .array(z.string().min(1))
       .min(1)
       .describe('Catalogue entity identifiers at that level. Use the catalogue tools to find them.')

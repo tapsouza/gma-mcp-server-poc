@@ -111,7 +111,7 @@ describe('exit codes (contracts/cli.md)', () => {
     const { code, stdout } = await run({ env: { ...VALID_ENV }, input: '/exit\n' });
 
     expect(code).toBe(0);
-    expect(stdout).toContain('spawned gma-mcp-server (3 tools)');
+    expect(stdout).toContain('spawned gma-mcp-server (8 tools)');
   });
 
   it('exits 0 on Ctrl-D with no /exit', async () => {
@@ -127,7 +127,7 @@ describe('startup output (Story 1 AC-1)', () => {
     const { stdout } = await run({ env: { ...VALID_ENV }, input: '/exit\n' });
 
     expect(stdout).toContain('✓ signed in');
-    expect(stdout).toContain('✓ spawned gma-mcp-server (3 tools)');
+    expect(stdout).toContain('✓ spawned gma-mcp-server (8 tools)');
   });
 
   it('never prints the credential itself (FR-014, SC-008)', async () => {

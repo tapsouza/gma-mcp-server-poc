@@ -9,6 +9,11 @@ import { GMA_BASE_URL, TEST_TOKEN, testConfig, useGmaServer } from '../helpers/g
 
 import instances200 from '../fixtures/gma/instances/200-success.json' with { type: 'json' };
 import instances206 from '../fixtures/gma/instances/206-partial.json' with { type: 'json' };
+import qbsSingleBet from '../fixtures/gma/qbsSearchBets/200-single-bet.json' with { type: 'json' };
+import crsContexts from '../fixtures/gma/crsContexts/200-success.json' with { type: 'json' };
+import event200 from '../fixtures/gma/events/200-success.json' with { type: 'json' };
+import crsAccount from '../fixtures/gma/crsAccounts/200-three-jurisdictions.json' with { type: 'json' };
+import metricsByBetType from '../fixtures/gma/customerMetrics/200-by-bet-type.json' with { type: 'json' };
 
 /**
  * MCP protocol smoke test.
@@ -310,6 +315,231 @@ describe('MCP protocol smoke', () => {
       expect(result.isError).toBe(true);
       const text = (result.content as { type: string; text: string }[])[0]!.text;
       expect(text).toContain('[auth]');
+
+      await close();
+    });
+
+    it('round-trips a CUSTOMER-domain call with BOTH completeness axes present', async () => {
+      // quickstart.md Validation 2. The second axis crosses the protocol here for the
+      // first time: `unavailableComponents` was added to the shared `Completeness` for
+      // this feature, and a shape the SDK cannot serialise would surface only here.
+      //
+      // A CRS failure is the case that exercises it — one missing SECTION of a composite
+      // answer, which must arrive as `unavailableComponents` (retry cannot help) and NOT
+      // as `failedInstances` (retry may help). Conflating them across the protocol would
+      // tell an agent to retry something that can never succeed.
+      gma.use(
+        http.post(`${GMA_BASE_URL}/qbs/graphql`, () => HttpResponse.json(qbsSingleBet)),
+        http.get(`${GMA_BASE_URL}/crs/accounts/:accountId`, () =>
+          HttpResponse.json({}, { status: 500 })
+        ),
+        http.get(`${GMA_BASE_URL}/crs/contexts`, () => HttpResponse.json(crsContexts)),
+        http.get(`${GMA_BASE_URL}/v5/events/:id`, () => HttpResponse.json(event200))
+      );
+
+      const { client, close } = await connect();
+
+      const result = await client.callTool({
+        name: 'get_bet_risk_context',
+        arguments: { betId: 'bet-000111' }
+      });
+
+      expect(result.isError).toBeFalsy();
+      const structured = result.structuredContent as {
+        bet: { betId: string };
+        completeness: {
+          complete: boolean;
+          failedInstances: string[];
+          unavailableComponents: string[];
+          caveat: string | null;
+        };
+      };
+
+      // BOTH axes present, and independent.
+      expect(structured.completeness.unavailableComponents).toEqual(['customerRiskConfiguration']);
+      expect(structured.completeness.failedInstances).toEqual([]);
+      expect(structured.completeness.complete).toBe(false);
+      expect(structured.completeness.caveat).not.toBeNull();
+      // The tool still answered — one missing section is not a failed tool.
+      expect(structured.bet.betId).toBe('bet-000111');
+      // And no customer identifier reached the caveat a human reads (Principle V).
+      expect(structured.completeness.caveat).not.toContain('acct-test-0001');
+
+      await close();
+    });
+  });
+
+  describe('every customer tool round-trips through the protocol', () => {
+    /**
+     * The registration layer is the only place these paths exist: argument threading,
+     * per-tool logging, and — for the metrics tool — the DECISION about whether to look up
+     * jurisdiction codes at all. None of it is reachable by calling a tool function
+     * directly, which is why it belongs here rather than in an integration suite.
+     */
+    it("round-trips list_jurisdiction_contexts, including Ontario's undeducible code", async () => {
+      gma.use(http.get(`${GMA_BASE_URL}/crs/contexts`, () => HttpResponse.json(crsContexts)));
+      const { client, close } = await connect();
+
+      const result = await client.callTool({
+        name: 'list_jurisdiction_contexts',
+        arguments: {}
+      });
+
+      const structured = result.structuredContent as {
+        jurisdictions: { code: string }[];
+        completeness: { complete: boolean };
+      };
+      // `NXTCANBS` is the standing proof that these codes must be looked up, not derived.
+      expect(structured.jurisdictions.map((j) => j.code)).toContain('NXTCANBS');
+      expect(structured.completeness.complete).toBe(true);
+
+      await close();
+    });
+
+    it('round-trips get_customer_risk_profile with one configuration per jurisdiction', async () => {
+      // Only ONE handler: this tool makes a single hop, and `onUnhandledRequest: 'error'`
+      // means a stray `/crs/contexts` call would fail this test — which is the assertion.
+      gma.use(
+        http.get(`${GMA_BASE_URL}/crs/accounts/:accountId`, () => HttpResponse.json(crsAccount))
+      );
+      const { client, close } = await connect();
+
+      const result = await client.callTool({
+        name: 'get_customer_risk_profile',
+        arguments: { accountId: 'acct-test-0001' }
+      });
+
+      const structured = result.structuredContent as {
+        jurisdictionConfigurations: { jurisdiction: { code: string } }[];
+      };
+      // THREE jurisdictions, nothing merged (FR-006, SC-003).
+      expect(structured.jurisdictionConfigurations).toHaveLength(3);
+      // Terse-but-honest jurisdiction references, NOT enriched codes. This tool is ONE
+      // hop by design: it does not fetch the context list, because a second hop that can
+      // fail is a poor trade for a prettier label. The reference falls back to the
+      // identifier rather than inventing a name — `list_jurisdiction_contexts` is where
+      // an agent gets the friendly code.
+      expect(structured.jurisdictionConfigurations.map((c) => c.jurisdiction.code)).toEqual([
+        'ctx-us-nj',
+        'ctx-us-pa',
+        'ctx-us-co'
+      ]);
+
+      await close();
+    });
+
+    it('round-trips find_customer_bets with its unconditional ordering caveat', async () => {
+      gma.use(http.post(`${GMA_BASE_URL}/qbs/graphql`, () => HttpResponse.json(qbsSingleBet)));
+      const { client, close } = await connect();
+
+      const result = await client.callTool({
+        name: 'find_customer_bets',
+        arguments: { accountId: 'acct-test-0001' }
+      });
+
+      const structured = result.structuredContent as {
+        bets: { betId: string }[];
+        orderingCaveat: string;
+      };
+      expect(structured.bets).toHaveLength(1);
+      expect(structured.orderingCaveat.length).toBeGreaterThan(0);
+
+      await close();
+    });
+
+    it('round-trips get_customer_betting_metrics WITHOUT looking up jurisdictions', async () => {
+      // No jurisdiction filter, so the code lookup must not happen: an unconditional hop
+      // would make every call pay for a check most calls do not need.
+      // `onUnhandledRequest: 'error'` means a stray `/crs/contexts` call fails this test.
+      gma.use(
+        http.post(`${GMA_BASE_URL}/accounts/:accountId/metrics`, () =>
+          HttpResponse.json(metricsByBetType)
+        )
+      );
+      const { client, close } = await connect();
+
+      const result = await client.callTool({
+        name: 'get_customer_betting_metrics',
+        arguments: { accountId: 'acct-test-0001', aggregation: 'BET_TYPE' }
+      });
+
+      const structured = result.structuredContent as {
+        aggregation: string;
+        groups: { keyKind: string }[];
+      };
+      expect(structured.aggregation).toBe('BET_TYPE');
+      expect(structured.groups.length).toBeGreaterThan(0);
+      // `vipManager` names a member of staff and must not cross the protocol.
+      expect(JSON.stringify(structured)).not.toContain('vipManager');
+
+      await close();
+    });
+
+    it('DOES look up jurisdictions when a filter was supplied, and rejects an unknown code', async () => {
+      gma.use(http.get(`${GMA_BASE_URL}/crs/contexts`, () => HttpResponse.json(crsContexts)));
+      const { client, close } = await connect();
+
+      const result = await client.callTool({
+        name: 'get_customer_betting_metrics',
+        arguments: {
+          accountId: 'acct-test-0001',
+          aggregation: 'BET_TYPE',
+          jurisdictions: ['NEWJERSEY']
+        }
+      });
+
+      expect(result.isError).toBe(true);
+      const text = (result.content as { type: string; text: string }[])[0]!.text;
+      expect(text).toContain('[argument]');
+      expect(text).toContain('list_jurisdiction_contexts');
+
+      await close();
+    });
+
+    it('still answers when the jurisdiction lookup FAILS, rather than denying valid work', async () => {
+      // A code we merely failed to verify is forwarded. Rejecting it would deny a request
+      // that may well be correct.
+      gma.use(
+        http.get(`${GMA_BASE_URL}/crs/contexts`, () => HttpResponse.json({}, { status: 500 })),
+        http.post(`${GMA_BASE_URL}/accounts/:accountId/metrics`, () =>
+          HttpResponse.json(metricsByBetType)
+        )
+      );
+      const { client, close } = await connect();
+
+      const result = await client.callTool({
+        name: 'get_customer_betting_metrics',
+        arguments: {
+          accountId: 'acct-test-0001',
+          aggregation: 'BET_TYPE',
+          jurisdictions: ['ANYTHING']
+        }
+      });
+
+      expect(result.isError).toBeFalsy();
+      expect((result.structuredContent as { aggregation: string }).aggregation).toBe('BET_TYPE');
+
+      await close();
+    });
+
+    it('surfaces a customer-tool failure as an MCP error with no completeness', async () => {
+      gma.use(
+        http.post(`${GMA_BASE_URL}/qbs/graphql`, () => HttpResponse.json({}, { status: 500 }))
+      );
+      const { client, close } = await connect();
+
+      const result = await client.callTool({
+        name: 'find_customer_bets',
+        arguments: { accountId: 'acct-test-0001' }
+      });
+
+      expect(result.isError).toBe(true);
+      // A failure must never be readable as data (Principle II)...
+      expect(result.structuredContent).toBeUndefined();
+      const text = (result.content as { type: string; text: string }[])[0]!.text;
+      expect(text).toContain('[upstream]');
+      // ...and must never echo the account identifier (Principle V, FR-029).
+      expect(text).not.toContain('acct-test-0001');
 
       await close();
     });

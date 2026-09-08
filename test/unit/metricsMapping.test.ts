@@ -36,7 +36,7 @@ describe('metrics mapping (FR-013, FR-014, R12)', () => {
       // difference between "metrics for the Premier League" and "metrics for everything".
       const body = toMetricsRequestBody({
         aggregation: 'HIERARCHY_ENTITY',
-        hierarchy: { level: 'EVENT_TYPE', entityIds: ['3307'] }
+        hierarchy: { level: 'EVENT_TYPE', catalogueEntityIds: ['3307'] }
       });
 
       expect(body.hierarchyEntity).toEqual({ EVENTTYPE: ['3307'] });
@@ -49,14 +49,14 @@ describe('metrics mapping (FR-013, FR-014, R12)', () => {
       expect(
         toMetricsRequestBody({
           aggregation: 'HIERARCHY_ENTITY',
-          hierarchy: { level: 'SUPERCLASS', entityIds: ['3'] }
+          hierarchy: { level: 'SUPERCLASS', catalogueEntityIds: ['3'] }
         }).hierarchyEntity
       ).toEqual({ SUPERCLASS: ['3'] });
 
       expect(
         toMetricsRequestBody({
           aggregation: 'HIERARCHY_ENTITY',
-          hierarchy: { level: 'SUBCLASS', entityIds: ['7', '8'] }
+          hierarchy: { level: 'SUBCLASS', catalogueEntityIds: ['7', '8'] }
         }).hierarchyEntity
       ).toEqual({ SUBCLASS: ['7', '8'] });
     });
