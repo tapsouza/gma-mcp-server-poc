@@ -555,3 +555,179 @@ export const getBetRiskContextOutputSchema = {
 export type LegResolutionOutcomeValue = z.infer<typeof legResolutionOutcomeSchema>;
 export type JurisdictionMatchValue = z.infer<typeof jurisdictionMatchOutcomeSchema>;
 export type BetRef = z.infer<typeof betRefSchema>;
+
+/**
+ * The aggregation shape — REQUIRED, with no default (FR-014, SC-008).
+ *
+ * A default here would be the worst kind of convenience: three aggregations answer three
+ * different questions, and silently picking one produces a confident answer to a question
+ * the user did not ask. An absent value is an `argument` error naming all three.
+ */
+export const aggregationSchema = z
+  .enum(['BET_TYPE', 'HIERARCHY_ENTITY', 'TIMEFRAME'])
+  .describe(
+    'REQUIRED — there is no default. BET_TYPE groups by bet type, HIERARCHY_ENTITY by catalogue entity, TIMEFRAME by period. Ask the user which they want rather than choosing one.'
+  );
+
+/** Upstream's time periods, passed through by name. */
+export const periodSchema = z
+  .enum(['_24_HOURS', 'LAST_WEEK', '_1_MONTH', '_3_MONTHS', '_6_MONTHS', '_1_YEAR', 'LIFETIME'])
+  .describe("A time period. The leading underscore is upstream's own spelling.");
+
+export const betTypeSchema = z
+  .enum(['SINGLE', 'PARLAY', 'SGP', 'SGP_PLUS', 'TEASER'])
+  .describe('SGP is a same-game parlay.');
+
+export const placementStatusSchema = z
+  .enum(['PRE_MATCH', 'IN_PLAY'])
+  .describe('When the bet was placed relative to the event starting.');
+
+/**
+ * A hierarchy filter — ONE level only.
+ *
+ * Upstream rejects entities spanning several levels with
+ * `MULTIPLE_HIERARCHY_LEVELS_NOT_COMBINABLE`, so the schema makes the invalid request
+ * unrepresentable rather than letting the agent discover the rule from a `400`.
+ *
+ * `MARKET_TYPE` is absent deliberately: the request body accepts only `SUPERCLASS`,
+ * `SUBCLASS` and `EVENTTYPE` (customer-metrics.yaml), so offering a fourth level would
+ * invite a filter upstream silently ignores.
+ */
+export const hierarchyFilterSchema = z
+  .object({
+    level: z
+      .enum(['SUPERCLASS', 'SUBCLASS', 'EVENT_TYPE'])
+      .describe('Exactly one level per request — entities from several cannot be combined.'),
+    entityIds: z
+      .array(z.string().min(1))
+      .min(1)
+      .describe('Catalogue entity identifiers at that level. Use the catalogue tools to find them.')
+  })
+  .describe('Restrict the metrics to part of the catalogue. One level only.');
+
+/**
+ * The CURATED measure subset (data-model.md section 10).
+ *
+ * Upstream returns ~40 measures in one flat bag. A tool schema of 40 numbers is a schema a
+ * model cannot use, so this keeps the commercial and behavioural core and drops the rest —
+ * a curation decision under Principle IV, and additive if a measure is wanted later.
+ *
+ * Two exclusions are not curation but policy: `vipManager` names a member of staff
+ * (Principle V), and the promo/device-link/internal-scoring measures are not
+ * self-describing, so a model shown them would narrate a guess.
+ */
+export const metricsFiguresSchema = z
+  .object({
+    betCount: z.number().nullable(),
+    grossStake: z.number().nullable(),
+    settledStake: z.number().nullable(),
+    averageStake: z.number().nullable(),
+    tradingRevenue: z.number().nullable(),
+    tradingMargin: z.number().nullable(),
+    expectedMargins: z.number().nullable(),
+    inPlayStake: z.number().nullable(),
+    averageLegsPerBet: z.number().nullable(),
+    averageLegPrice: z.number().nullable(),
+    distinctEvents: z.number().nullable(),
+    playerDays: z.number().nullable(),
+    nearLimitBet: z.number().nullable(),
+    firstBetDate: z.string().nullable(),
+    lastBetDate: z.string().nullable()
+  })
+  .describe(
+    'A curated subset of the measures upstream computes. A null means upstream did not report that measure — NOT zero.'
+  );
+
+/**
+ * One aggregation bucket, DISCRIMINATED by `keyKind`.
+ *
+ * A discriminator rather than three sibling optional fields, so a bet type cannot be read
+ * as a period. With `betType`/`period`/`hierarchyEntity` as siblings, a model seeing one
+ * populated field would have to infer which question it answers — and `SINGLE` and
+ * `_1_MONTH` are both plausible-looking keys.
+ */
+export const metricsGroupSchema = z
+  .object({
+    key: z.string().describe('The bucket this row is for: a bet type, a period, or an entity id.'),
+    keyKind: z
+      .enum(['betType', 'hierarchyEntity', 'period'])
+      .describe('What `key` IS. Read this before interpreting `key`.'),
+    keyName: z
+      .string()
+      .nullable()
+      .describe('A human-readable name, for a hierarchy entity; null for the other kinds.'),
+    hierarchyLevel: z
+      .enum(['SUPERCLASS', 'SUBCLASS', 'EVENT_TYPE', 'MARKET_TYPE'])
+      .nullable()
+      .describe('Present only when keyKind is hierarchyEntity.'),
+    figures: metricsFiguresSchema
+  })
+  .describe('One row of the aggregation the caller asked for.');
+
+/** Input of `get_customer_betting_metrics`. */
+export const getCustomerBettingMetricsInputSchema = {
+  accountId: z.string().min(1).describe("The customer's account identifier."),
+  aggregation: aggregationSchema,
+  period: periodSchema.optional().describe('Restrict to one period. Omit for all time.'),
+  betTypes: z
+    .array(betTypeSchema)
+    .min(1)
+    .optional()
+    .describe('Restrict to these bet types. Omit for all.'),
+  placementStatus: z
+    .array(placementStatusSchema)
+    .min(1)
+    .optional()
+    .describe('Restrict to pre-match or in-play. Omit for both.'),
+  jurisdictions: z
+    .array(z.string().min(1))
+    .min(1)
+    .optional()
+    .describe(
+      'Jurisdiction CODES to restrict to. Get them from list_jurisdiction_contexts — a code this server does not recognise is an error, never a silently dropped filter.'
+    ),
+  hierarchy: hierarchyFilterSchema.optional()
+  // No `instance`: a customer call is scoped by the account identifier alone.
+};
+
+/** Output of `get_customer_betting_metrics`. */
+export const getCustomerBettingMetricsOutputSchema = {
+  accountId: z.string(),
+  aggregation: aggregationSchema.describe(
+    'The aggregation these figures are grouped by — echoed back so the answer states its own shape.'
+  ),
+  lifetime: metricsFiguresSchema
+    .nullable()
+    .describe('Lifetime totals, UNAFFECTED by the filters. Never compare these to a filtered row.'),
+  filteredTotal: metricsFiguresSchema
+    .nullable()
+    .describe('Totals across the filtered set. This is what the groups below sum to.'),
+  groups: z.array(metricsGroupSchema).describe('One row per bucket. May be empty.'),
+  completeness: completenessSchema
+};
+
+export type Aggregation = z.infer<typeof aggregationSchema>;
+export type Period = z.infer<typeof periodSchema>;
+export type BetTypeValue = z.infer<typeof betTypeSchema>;
+export type PlacementStatus = z.infer<typeof placementStatusSchema>;
+export type HierarchyFilter = z.infer<typeof hierarchyFilterSchema>;
+export type MetricsFigures = z.infer<typeof metricsFiguresSchema>;
+export type MetricsGroup = z.infer<typeof metricsGroupSchema>;
+
+/**
+ * The arguments `get_customer_betting_metrics` accepts.
+ *
+ * `aggregation` is typed as OPTIONAL here even though the input schema makes it required,
+ * so the tool's own required-argument check is reachable and testable. The MCP layer
+ * rejects an absent value first; this keeps the tool honest when called directly, and
+ * FR-014's error is the one an agent should see either way.
+ */
+export interface GetCustomerBettingMetricsArgs {
+  readonly accountId?: string | undefined;
+  readonly aggregation?: Aggregation | undefined;
+  readonly period?: Period | undefined;
+  readonly betTypes?: readonly BetTypeValue[] | undefined;
+  readonly placementStatus?: readonly PlacementStatus[] | undefined;
+  readonly jurisdictions?: readonly string[] | undefined;
+  readonly hierarchy?: HierarchyFilter | undefined;
+}

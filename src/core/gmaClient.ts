@@ -8,7 +8,7 @@ import {
 } from './errors.js';
 import { authorizationHeader, type OperatorToken } from './identity.js';
 import { createLogger, levelForOutcome, traceparent, type Logger } from './telemetry.js';
-import type { GmaResult } from './types.js';
+import { ToolError, type GmaResult } from './types.js';
 
 /**
  * The GMA HTTP client (FR-001, FR-003, constitution Principles I, II and V).
@@ -61,6 +61,24 @@ export interface GmaCallOptions {
    * asked for. That is the confident-failure shape this option exists to prevent.
    */
   readonly instancesParam?: 'instancesList' | 'sources' | undefined;
+  /**
+   * Read a failure response's body and hand it to this function, so the caller can turn
+   * a machine-readable error CODE into self-correctable guidance (SC-008).
+   *
+   * Off by default, and deliberately narrow. Two rules it exists to respect at once:
+   *
+   *  - The upstream `message` MUST NOT reach a tool-visible string. On the metrics
+   *    surface it carries "the Json response that caused the exception", which can echo
+   *    an account identifier (Principle V, FR-029). So this hands the caller the parsed
+   *    body and takes back only a hint the CALLER composed — never upstream prose.
+   *  - The returned hint is appended to the error the status already produced; it does
+   *    not replace the error, change its `kind`, or make it retryable. A `400` remains a
+   *    non-retryable `argument` failure whichever code it carried.
+   *
+   * A body that will not parse, or a function that returns `null`, leaves the error
+   * exactly as it would have been.
+   */
+  readonly errorHint?: ((body: unknown) => string | null) | undefined;
   /** Caller's cancellation signal, composed with the configured timeout. */
   readonly signal?: AbortSignal | undefined;
   /** Which hop of a multi-hop tool this is, for logging only. */
@@ -202,7 +220,29 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
     const status = response.status;
 
     if (status !== 200 && status !== 206) {
-      const toolError = errorFromStatus(status, operation);
+      const baseError = errorFromStatus(status, operation);
+
+      // An opt-in, caller-composed hint. The body is read only when a caller asked for
+      // it, and only the caller's own sentence is appended — never upstream text.
+      let toolError = baseError;
+      if (options.errorHint !== undefined) {
+        let hint: string | null;
+        try {
+          hint = options.errorHint(await response.json());
+        } catch {
+          // An unparseable body is not a second failure: the status already said what
+          // went wrong, and the error stands exactly as it would have without this.
+          hint = null;
+        }
+        if (hint !== null) {
+          toolError = new ToolError(
+            baseError.kind,
+            `${baseError.message} ${hint}`,
+            baseError.retryable
+          );
+        }
+      }
+
       log.error({
         tool: options.tool,
         operation,

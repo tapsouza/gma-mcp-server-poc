@@ -225,3 +225,49 @@ code, so every bet reported `jurisdictionNotMatched`. Mapping now happens after 
 **Not applicable, asserted rather than assumed**: there is deliberately no `206` fixture for either
 CRS surface — CRS declares **no** partial-failure contract at all, which is why a CRS failure is a
 missing SECTION (`unavailableComponents`) and never a failed instance.
+
+### `get_customer_betting_metrics` — User Story 4 (Phase 6)
+
+Two of these rows are about a **refusal**. A missing aggregation and an unrecognised
+jurisdiction code each have a tempting default — pick a grouping, drop the filter — and both
+defaults answer a question nobody asked. Upstream in particular IGNORES a jurisdiction code it
+does not recognise and returns metrics for every jurisdiction, so a silently-dropped filter
+reads as "this customer bets far more than you thought".
+
+| Case                                                                                   | Named test block                                                                                                                           | File                                                                           |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| **A missing `aggregation` is an `argument` error NAMING all three** (FR-014, SC-008)   | `case: a missing aggregation is an argument error NAMING all three (FR-014, SC-008)`                                                       | `integration/getCustomerBettingMetrics.test.ts`                                |
+| ...and makes **no** upstream call, since the request cannot be correct                 | same block — "makes NO upstream call when the aggregation is absent"                                                                       | `integration/getCustomerBettingMetrics.test.ts`                                |
+| The requested aggregation is **echoed back**, so the answer states its own shape       | `case: the requested aggregation is echoed back (data-model.md section 10)`                                                                | `integration/getCustomerBettingMetrics.test.ts`                                |
+| **`keyKind` discriminates**, so a bet type cannot be read as a period                  | `case: keyKind DISCRIMINATES, so a bet type cannot be read as a period` — all three values produced                                        | `unit/metricsMapping.test.ts`                                                  |
+| **An unrecognised jurisdiction code is an ERROR, never a dropped filter** (FR-013)     | `case: an unrecognised jurisdiction code is an ERROR, never a dropped filter (FR-013)`                                                     | `integration/getCustomerBettingMetrics.test.ts`                                |
+| ...and points at `list_jurisdiction_contexts`, whose codes are not derivable           | same block — "rejects the code and points at list_jurisdiction_contexts" and "accepts a code no derivation could produce"                  | `integration/getCustomerBettingMetrics.test.ts`                                |
+| A code that could not be VERIFIED is forwarded, not rejected                           | same block — "FORWARDS the filter when the codes could not be looked up"                                                                   | `integration/getCustomerBettingMetrics.test.ts`                                |
+| **Each `400` `errorCode` becomes a self-correctable hint** (SC-008)                    | `case: each upstream 400 becomes a self-correctable hint (SC-008)` and `case: each 400 errorCode becomes a self-correctable hint (SC-008)` | `integration/getCustomerBettingMetrics.test.ts`, `unit/metricsMapping.test.ts` |
+| **The upstream `message` is NEVER interpolated** — it can echo the account id (FR-029) | same blocks — "surfaces no upstream text for the shape that carries no errorCode" and "NEVER includes upstream message text in a hint"     | `integration/getCustomerBettingMetrics.test.ts`, `unit/metricsMapping.test.ts` |
+| An unrecognised code leaves the error untouched rather than inventing guidance         | same block — "leaves the error untouched when the code is unrecognised"                                                                    | `integration/getCustomerBettingMetrics.test.ts`                                |
+| **`vipManager` is absent from the output** — it names a person (Principle V)           | `case: vipManager NEVER leaves the mapper (Principle V)` and `case: vipManager reaches no caller (Principle V)`                            | `unit/metricsMapping.test.ts`, `integration/getCustomerBettingMetrics.test.ts` |
+| The ~20 promo/device/internal-scoring measures are dropped; **exactly fifteen** remain | same block — "drops the promo, device-link, and internal-scoring measures" and "keeps exactly the fifteen curated measures"                | `unit/metricsMapping.test.ts`                                                  |
+| **LLM-facing `EVENT_TYPE` → upstream `EVENTTYPE`** at the client boundary (R12)        | `case: the request body translates EVENT_TYPE to EVENTTYPE (R12)` and "translates EVENT_TYPE to EVENTTYPE on the wire"                     | `unit/metricsMapping.test.ts`, `integration/getCustomerBettingMetrics.test.ts` |
+| **The `POST` variant is used; the `GET` is deprecated** (FR-015)                       | same block — "uses the POST variant, since the GET is deprecated (FR-015)"                                                                 | `integration/getCustomerBettingMetrics.test.ts`                                |
+| Filters travel in the BODY, so no identifier reaches a URL                             | same block — "sends the filters in the BODY, never in the URL"                                                                             | `integration/getCustomerBettingMetrics.test.ts`                                |
+| **A null measure is "not reported", NEVER zero**                                       | `case: an absent measure is null, NEVER zero` — including a genuine zero preserved                                                         | `unit/metricsMapping.test.ts`                                                  |
+| `lifetime` and `filteredTotal` stay DISTINCT, since they are not comparable            | same block — "keeps lifetime and filteredTotal DISTINCT, since they are not comparable"                                                    | `unit/metricsMapping.test.ts`                                                  |
+| **No account identifier in any error message** (FR-029, FR-030)                        | `case: the account identifier is never echoed (FR-029, FR-030)` — including through a `500`, whose message names the TEMPLATE              | `integration/getCustomerBettingMetrics.test.ts`                                |
+| `401` → `auth`; `403` → `forbidden`, not a sign-in problem (SC-009)                    | same block — "maps a 401 to auth" and "maps a 403 to forbidden, which is NOT a sign-in problem"                                            | `integration/getCustomerBettingMetrics.test.ts`                                |
+| A row naming none of the three keys is DROPPED, not given an invented key              | `case: keyKind DISCRIMINATES …` — "DROPS a row naming none of the three keys"                                                              | `unit/metricsMapping.test.ts`                                                  |
+
+**A `core` addition this story required.** The client discarded every failure body, so a tool
+could not reach a machine-readable `errorCode` — and SC-008 wants a self-correctable error, which
+a bare code is not. `GmaCallOptions.errorHint` is an opt-in reader: the caller is handed the
+parsed body and returns a sentence IT composed, which is appended to the error the status already
+produced. Two properties keep it safe. The upstream `message` never reaches a tool-visible string
+(on this surface it carries "the Json response that caused the exception", which can echo the
+account identifier), and the hint changes neither the error's `kind` nor its retryability — a
+`400` stays a non-retryable `argument` failure whichever code it carried. Every existing call
+omits the option and is unchanged.
+
+**Not applicable, asserted rather than assumed**: this is one hop, so `TIMEOUT_PARTIAL` is
+unreachable and there is no aggregation to perform. `customer-metrics.yaml` declares **no** `206`
+for this operation, so there is deliberately no partial-success fixture — the surface has no
+partial-failure contract to model.

@@ -62,10 +62,13 @@ describe('MCP protocol smoke', () => {
         'find_customer_bets',
         'get_bet_risk_context',
         'get_catalogue_entity',
+        'get_customer_betting_metrics',
         'get_customer_risk_profile',
         'list_instances',
         'list_jurisdiction_contexts'
       ]);
+      // Exactly eight: three catalogue tools plus the customer domain's five (FR-001).
+      expect(tools).toHaveLength(8);
       for (const tool of tools) {
         expect(tool.description).toBeDefined();
         expect(tool.description!.length).toBeGreaterThan(0);

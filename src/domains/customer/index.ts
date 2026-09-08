@@ -10,12 +10,18 @@ import {
   findCustomerBetsOutputSchema,
   getBetRiskContextInputSchema,
   getBetRiskContextOutputSchema,
+  getCustomerBettingMetricsInputSchema,
+  getCustomerBettingMetricsOutputSchema,
   getCustomerRiskProfileInputSchema,
   getCustomerRiskProfileOutputSchema,
   listJurisdictionContextsOutputSchema
 } from './schemas.js';
 import { FIND_CUSTOMER_BETS_DESCRIPTION, findCustomerBets } from './tools/findCustomerBets.js';
 import { GET_BET_RISK_CONTEXT_DESCRIPTION, getBetRiskContext } from './tools/getBetRiskContext.js';
+import {
+  GET_CUSTOMER_BETTING_METRICS_DESCRIPTION,
+  getCustomerBettingMetrics
+} from './tools/getCustomerBettingMetrics.js';
 import {
   GET_CUSTOMER_RISK_PROFILE_DESCRIPTION,
   getCustomerRiskProfile
@@ -315,6 +321,83 @@ export function registerCustomerDomain(server: McpServer, deps: DomainDeps): voi
       } catch (error) {
         logger.error({
           tool: 'get_bet_risk_context',
+          errorKind: isToolError(error) ? error.kind : 'upstream',
+          latencyMs: Date.now() - startedAt,
+          event: 'tool.error'
+        });
+        return toErrorResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    'get_customer_betting_metrics',
+    {
+      title: "Get a customer's betting metrics",
+      description: GET_CUSTOMER_BETTING_METRICS_DESCRIPTION,
+      inputSchema: getCustomerBettingMetricsInputSchema,
+      outputSchema: getCustomerBettingMetricsOutputSchema,
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async (args, extra) => {
+      const startedAt = Date.now();
+      try {
+        const token = extractOperatorToken(extra as RequestIdentitySource);
+
+        // The jurisdiction codes are fetched ONLY when a filter was supplied — there is
+        // nothing to validate otherwise, and an unconditional hop would make every call
+        // pay for a check most calls do not need.
+        //
+        // A failure to fetch yields `null`, which means "we could not check" and lets the
+        // filter through. Rejecting a code we merely failed to verify would deny a valid
+        // request; forwarding it risks unfiltered metrics, which the tool description
+        // already warns about. Neither is free, and denying valid work is the worse of
+        // the two.
+        let knownJurisdictions: string[] | null = null;
+        if (args.jurisdictions !== undefined) {
+          try {
+            const contexts = await listJurisdictionContexts(client, token);
+            knownJurisdictions = contexts.jurisdictions.map((jurisdiction) => jurisdiction.code);
+          } catch {
+            knownJurisdictions = null;
+          }
+        }
+
+        const result = await getCustomerBettingMetrics({ client, knownJurisdictions }, token, {
+          accountId: args.accountId,
+          aggregation: args.aggregation,
+          period: args.period,
+          betTypes: args.betTypes,
+          placementStatus: args.placementStatus,
+          jurisdictions: args.jurisdictions,
+          hierarchy: args.hierarchy
+        });
+
+        logger.info({
+          tool: 'get_customer_betting_metrics',
+          // The AGGREGATION and COUNTS only. No account identifier, no filter values, and
+          // no measure — a metric about one customer is a datum about them (Principle V).
+          resolution: result.aggregation,
+          // `matchCount` reuses an allowlisted count field rather than widening the
+          // allowlist for a synonym: a new log field is a reviewed act (Principle V), and
+          // "how many rows came back" is exactly what this field already means.
+          matchCount: result.groups.length,
+          aggregateOutcome: result.completeness.outcome,
+          latencyMs: Date.now() - startedAt,
+          event: 'tool.success'
+        });
+
+        return toSuccessResult({
+          accountId: result.accountId,
+          aggregation: result.aggregation,
+          lifetime: result.lifetime,
+          filteredTotal: result.filteredTotal,
+          groups: result.groups,
+          completeness: result.completeness
+        });
+      } catch (error) {
+        logger.error({
+          tool: 'get_customer_betting_metrics',
           errorKind: isToolError(error) ? error.kind : 'upstream',
           latencyMs: Date.now() - startedAt,
           event: 'tool.error'

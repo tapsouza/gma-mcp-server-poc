@@ -1,0 +1,4 @@
+{
+  "reason": "CLIENT_ERROR",
+  "message": "Customer Metrics API rejected the request for account acct-test-0001"
+}
