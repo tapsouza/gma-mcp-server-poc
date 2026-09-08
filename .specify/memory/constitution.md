@@ -1,21 +1,28 @@
 <!--
 SYNC IMPACT REPORT
-Version change: 1.0.2 → 1.1.0
-Rationale: MINOR. Sections are materially expanded and new normative rules are added;
-nothing is removed and no previously compliant code becomes non-compliant. The
-motivating case is `specs/004-customer-bet-tools`, which the constitution as ratified
-forbade in three separate ways: the surface was fixed to the v5 catalogue API and the
-tool set to exactly three tools; Principle II's completeness model had one failure axis
-(which brand instances did not answer) and therefore no way to say "every source
-answered but a section of this composite answer is missing"; and the outcome mapping had
-no row for an upstream response that succeeds while reporting errors inside itself, nor
-for authenticated-but-unauthorised.
+Version change: 1.1.0 → 1.2.0
+Rationale: MINOR. One operation is added to the surface register and one register entry
+is narrowed to the path that was actually verified. Nothing is removed, no principle
+changes, and no previously compliant code becomes non-compliant — the catalogue row is
+untouched and no tool exists yet on the customer row.
 
-The migration path for existing code is additive. `Completeness` gains a second
-collection which is empty for every current catalogue call, so `complete` keeps its
-present value everywhere; `ErrorKind` gains a member no existing mapping produces. The
-catalogue domain's behaviour is unchanged and its tests MUST pass unmodified — that is
-the acceptance condition for this amendment (see Development Workflow).
+The motivating case is `specs/004-customer-bet-tools`, whose plan (Phase 0 research R7)
+established that the feature cannot satisfy Principle V without a jurisdiction-context
+discovery tool: Principle V requires a discovery tool for any scoping vocabulary an agent
+is expected to supply, the feature's metrics capability takes jurisdiction codes as a
+filter, and those codes are NOT derivable — `NJ`, `PA`, `CO` are observed, but Ontario's
+context is `NXTCANBS` against a catalogue jurisdiction of `urn:i:FD:CA-ON`. Principle IV
+forbids calling an operation absent from the register, so the tool that fixes this was
+itself unbuildable. `GET /crs/contexts` returns exactly that list and is now registered.
+
+The second change is a correction, not an expansion: the register said
+`POST /qbs/{path}`, which is the controller's mapping shape rather than a path a tool may
+call. The verified path is `POST /qbs/graphql`, and naming it is strictly narrower — a
+register entry that admits a caller-chosen `{path}` sits awkwardly beside Principle IV's
+rule that a read-only tool MUST NOT accept an upstream path, since the register would
+appear to license the very thing the principle forbids.
+
+Migration path: none required. No code calls either operation today.
 
 History:
   - 1.0.0 initial ratification (previous file was the unpopulated scaffold).
@@ -23,7 +30,36 @@ History:
     correcting the issuer and GAHS claims and Principle I's rationale.
   - 1.0.2 PATCH: Principle II's mapping re-keyed from a `status.code` envelope to HTTP
     status codes after reading the v5 spec; Prefab scaffold obligation deferred.
-  - 1.1.0 MINOR: this amendment (see below).
+  - 1.1.0 MINOR: second completeness axis, `forbidden`, customer identifiers as personal
+    data, per-domain surface register (see below).
+  - 1.2.0 MINOR: this amendment — `GET /crs/contexts` registered; `POST /qbs/{path}`
+    narrowed to `POST /qbs/graphql`.
+
+Modified principles (1.2.0): none. No principle text changes.
+
+Modified sections (1.2.0):
+  - Technology & Platform Constraints, surface register — the `customer` row gains
+    `GET /crs/contexts` and its `POST /qbs/{path}` entry becomes `POST /qbs/graphql`.
+  - "Deployed GMA customer & bet surfaces" — two verified facts added: the QBS path and
+    the existence of the context list. Nothing previously recorded is changed.
+
+Verified 2026-09-08 against the GMA source and `@flutter-global/gma-client`, for the
+1.2.0 amendment:
+  - `GET /crs/contexts` returns `ContextEntity { contextName, contextId, contextCode }`
+    (`gma-client` `fetchCrsContexts` → `${url}/crs/contexts`; type at
+    `endpoints/account/types.d.ts:350`). `contextCode` is the value a jurisdiction filter
+    takes, so it is looked up rather than derived.
+  - The QBS path is `/qbs/graphql`. `gqlBetManagement` in `gma-client` selects
+    `'/qbs/graphql'`, and a scan of its bundle yields only `/qbs/graphql` and
+    `/qbs/export` under that prefix. `POST /qbs/{pathToQbs}` is the controller's
+    `@PostMapping` shape (`QbsHttpRequestsController:82`), not a menu for callers.
+  - `spring.controller.crs.enabled` and `spring.controller.qbs.enabled` are packaged
+    `false` (`application.properties:90`, `:135`) but `default_unless … = true` in
+    `attributes/common.rb:72` and `:86`, unoverridden — so both controllers are ON in
+    every deployed environment, as `okta.auth.enabled` is.
+  - `spring.controller.qbs.multiple.instances.enabled` is `false` and is set NOWHERE in
+    all-chef-fdg, so the `?instance=` parameter is not required and MUST NOT be sent:
+    `QbsProxyService:39-47` rejects a null instance only when multi-instance is enabled.
 
 Modified principles (1.1.0):
   - I. Pass-Through Identity — added the `403` rule: authenticated-but-unauthorised is a
@@ -421,7 +457,18 @@ per-session, and `traceparent` already provides it without naming anyone.
   | Domain | Permitted GMA operations | Scoping vocabulary |
   |---|---|---|
   | `catalogue` | `GET /v5/instances`; `POST /v5/searchByName`; `GET /v5/{superclasses\|subclasses\|eventTypes}/{id}`; `GET /v5/subclasses/{id}/eventTypes`; `GET /v5/eventTypes/{id}/events`; `GET /v5/events/{id}` | brand instance (`instancesList`, or `sources` where the operation declares that name) |
-  | `customer` | `GET /crs/accounts/{accountId}`; `POST /accounts/{accountId}/metrics`; `POST /qbs/{path}` restricted to the server's own fixed bet-search documents; `GET /v5/events/{id}` | jurisdiction context |
+  | `customer` | `GET /crs/contexts`; `GET /crs/accounts/{accountId}`; `POST /accounts/{accountId}/metrics`; `POST /qbs/graphql` restricted to the server's own fixed bet-search documents; `GET /v5/events/{id}` | jurisdiction context |
+
+  The QBS entry names `POST /qbs/graphql` specifically. GMA's controller is mapped as
+  `POST /qbs/{pathToQbs}`, but a register entry containing a path variable would appear to
+  license a caller-chosen upstream target, which Principle IV forbids outright. The
+  registered operation is the single verified path, and the document sent to it is fixed in
+  the server.
+
+  `GET /crs/contexts` is the customer domain's scoping-discovery operation. Principle V
+  requires a discovery tool wherever an agent supplies a scoping value, and jurisdiction
+  context codes are NOT derivable from a catalogue jurisdiction (see the verified table
+  below), so they MUST be looked up rather than guessed or maintained in a hardcoded table.
 
   The deprecated `search.yaml` market operations MUST NOT be used, nor
   `GET /accounts/{accountId}/metrics`, which is marked deprecated in favour of the
@@ -493,8 +540,11 @@ first written for, and the differences are the reason this amendment exists.
 | CRS account path | `/crs/**` is a raw forwarding proxy; `/crs/accounts/{accountId}` is declared in **no** OpenAPI spec and publishes no partial-failure signal |
 | CRS override enrichment | GMA already resolves each hierarchy override's full named ancestor chain (`CustomerRiskCatalogEnrichmentService`, intercepted at `CrsHttpRequestsController:213`) |
 | CRS scoping | `contexts[]`, one entry **per jurisdiction**; a customer has several, each with its own settings and overrides |
+| Jurisdiction context list | `GET /crs/contexts` returns `{ contextName, contextId, contextCode }` per jurisdiction — the vocabulary a scoping filter takes, discoverable rather than derivable |
+| QBS path | `POST /qbs/graphql` (the controller's mapping is `POST /qbs/{pathToQbs}`, but `graphql` is the only search path in use; `export` is the other) |
 | QBS partial failure | HTTP **`200`** carrying GraphQL `errors[]` with requested fields unpopulated (`BetSearchClient.java:52`) |
 | QBS authorization | `403` per GraphQL operation (`QbsHttpRequestsController:96`), gated by a flag whose packaged default is `false` |
+| QBS instance parameter | `?instance=` is required only when `spring.controller.qbs.multiple.instances.enabled` is true, which is `false` and set nowhere in Chef |
 | Metrics | `POST /accounts/{accountId}/metrics` is current; the `GET` variant is `deprecated: true` |
 | `207` / `424` | declared on `notes-api.yaml` and `bulk-actions-api.yaml`; **not** on the CRS account path |
 | Catalogue vocabularies | risk overrides use `SUPERCLASS`/`SUBCLASS`/`EVENT_TYPE`/`MARKET_TYPE`; bet legs use `SPORT`/`COMPETITION`/`EVENT`/`MARKET`/`SELECTION` — **different trees**, and a leg carries no risk-side level |
@@ -516,7 +566,13 @@ Consequences that bind this project:
 - Deriving a jurisdiction context identifier from a catalogue jurisdiction identifier
   works for US states but **provably fails** for at least one non-US jurisdiction
   (`urn:i:FD:CA-ON` against a context observed as `NXTCANBS`). A tool MUST therefore
-  treat matching as fallible and report the failure distinctly (Principle IV).
+  treat matching as fallible and report the failure distinctly (Principle IV), and MUST
+  prefer the context list from `GET /crs/contexts` over its own derivation. Derivation is
+  a fallback, never the primary mechanism, and a hardcoded jurisdiction table is
+  prohibited: it would fail *confidently* as jurisdictions are added.
+- The QBS `?instance=` parameter MUST NOT be sent while multi-instance routing is
+  disabled, and an instance MUST NOT be exposed as a tool argument in any case — it is a
+  routing concern, not a scoping vocabulary, and Principle V keeps it in configuration.
 - Applied risk figures are computed by GMA's downstream pricing and risk engine, whose
   formula is not exposed. A tool MUST NOT reconstruct or imply how a limit was derived;
   it MAY place applied and configured values side by side and compare them directly.
@@ -638,4 +694,4 @@ governing document.
 - `AGENTS.md` / `CLAUDE.md` in this repository carry runtime development guidance and
   MUST NOT contradict this constitution.
 
-**Version**: 1.1.0 | **Ratified**: 2026-09-03 | **Last Amended**: 2026-09-08
+**Version**: 1.2.0 | **Ratified**: 2026-09-03 | **Last Amended**: 2026-09-08
