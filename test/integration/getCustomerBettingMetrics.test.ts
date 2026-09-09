@@ -14,6 +14,7 @@ import {
   useGmaServer
 } from '../helpers/gma.js';
 
+import allZero from '../fixtures/gma/customerMetrics/200-all-zero-no-data.json' with { type: 'json' };
 import byBetType from '../fixtures/gma/customerMetrics/200-by-bet-type.json' with { type: 'json' };
 import byHierarchy from '../fixtures/gma/customerMetrics/200-by-hierarchy-entity.json' with { type: 'json' };
 import byTimeframe from '../fixtures/gma/customerMetrics/200-by-timeframe.json' with { type: 'json' };
@@ -444,6 +445,72 @@ describe('get_customer_betting_metrics (Story 4, P4)', () => {
       expect(GET_CUSTOMER_BETTING_METRICS_DESCRIPTION).toMatch(/NOT zero/);
       expect(GET_CUSTOMER_BETTING_METRICS_DESCRIPTION).toMatch(/list_jurisdiction_contexts/);
       expect(GET_CUSTOMER_BETTING_METRICS_DESCRIPTION).toMatch(/relay/i);
+    });
+
+    it('names the separate reporting source, and forbids the has-not-bet conclusion', () => {
+      // Live-evidenced: a customer with 3,795 bets returned all-zero metrics. Metrics come
+      // from a reporting warehouse that is not the system bet records live in, so the two
+      // can genuinely disagree — and the model must not resolve that disagreement itself.
+      expect(GET_CUSTOMER_BETTING_METRICS_DESCRIPTION).toMatch(/separate reporting warehouse/i);
+      expect(GET_CUSTOMER_BETTING_METRICS_DESCRIPTION).toMatch(/never conclude/i);
+      expect(GET_CUSTOMER_BETTING_METRICS_DESCRIPTION).toMatch(/find_customer_bets/);
+    });
+  });
+
+  describe("case: upstream's all-zero response is warned about, not relayed as a fact", () => {
+    it('carries noDataNotice through the tool, alongside the figures', async () => {
+      server.use(http.post(METRICS, () => HttpResponse.json(allZero)));
+
+      const result = await getCustomerBettingMetrics(deps(), TEST_TOKEN, {
+        accountId: ACCOUNT,
+        aggregation: 'TIMEFRAME'
+      });
+
+      expect(result.noDataNotice).toBeDefined();
+      expect(result.noDataNotice).toContain('NOT evidence');
+      // The figures are STILL returned: a notice, not a refusal. The zeros may be genuine
+      // for a brand-new account, and withholding them would deny a legitimate question.
+      expect(result.lifetime!.betCount).toBe(0);
+      expect(result.groups).toHaveLength(4);
+    });
+
+    it('does NOT mark the result incomplete — the data arrived, its meaning is what is unclear', async () => {
+      // The axes stay clean. `complete: false` means a section could not be retrieved; if
+      // an interpretive doubt also set it, an agent could not tell which had happened, and
+      // would retry a call that will return exactly the same thing.
+      server.use(http.post(METRICS, () => HttpResponse.json(allZero)));
+
+      const result = await getCustomerBettingMetrics(deps(), TEST_TOKEN, {
+        accountId: ACCOUNT,
+        aggregation: 'TIMEFRAME'
+      });
+
+      expect(result.completeness.complete).toBe(true);
+      expect(result.completeness.unavailableComponents ?? []).toEqual([]);
+    });
+
+    it('is absent for an ordinary answer', async () => {
+      server.use(http.post(METRICS, () => HttpResponse.json(byBetType)));
+
+      const result = await getCustomerBettingMetrics(deps(), TEST_TOKEN, {
+        accountId: ACCOUNT,
+        aggregation: 'BET_TYPE'
+      });
+
+      expect(result).not.toHaveProperty('noDataNotice');
+    });
+
+    it('never names the customer or the account in the notice (FR-029, Principle V)', async () => {
+      // The notice is a FIXED sentence. It is worth asserting because a notice about one
+      // customer's data is the obvious place to reach for their identifier.
+      server.use(http.post(METRICS, () => HttpResponse.json(allZero)));
+
+      const result = await getCustomerBettingMetrics(deps(), TEST_TOKEN, {
+        accountId: ACCOUNT,
+        aggregation: 'TIMEFRAME'
+      });
+
+      expect(result.noDataNotice).not.toContain(ACCOUNT);
     });
   });
 

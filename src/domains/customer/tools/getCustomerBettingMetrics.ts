@@ -46,9 +46,13 @@ const AGGREGATIONS: readonly Aggregation[] = ['BET_TYPE', 'HIERARCHY_ENTITY', 'T
 /**
  * The description the model sees, from contracts/tools.md section 5.
  *
- * Two of its instructions prevent two specific wrong answers: the lifetime-versus-filtered
+ * Three of its instructions prevent three specific wrong answers: the lifetime-versus-filtered
  * warning prevents comparing an all-time total against a one-week row and calling it a
- * trend, and the null instruction prevents reading "not reported" as zero.
+ * trend, the null instruction prevents reading "not reported" as zero, and the
+ * separate-source sentence prevents a metrics answer being cited as evidence about a
+ * customer's BETS. The last one is live-evidenced: a customer with 3,795 bets returned
+ * all-zero metrics, and metrics come from a reporting warehouse
+ * (`data-api…fddata-dev.net`) that is not the system bet records live in.
  */
 export const GET_CUSTOMER_BETTING_METRICS_DESCRIPTION =
   "Returns a customer's betting metrics, grouped by an aggregation YOU MUST CHOOSE: BET_TYPE, " +
@@ -56,8 +60,11 @@ export const GET_CUSTOMER_BETTING_METRICS_DESCRIPTION =
   'has not said which they want, ask. Optional filters narrow the set; get jurisdiction codes from ' +
   'list_jurisdiction_contexts rather than guessing them. `lifetime` is UNFILTERED and covers all ' +
   'time, so never compare it against a filtered row and call the difference a trend — compare ' +
-  'against `filteredTotal`. A null measure means upstream did not report it, NOT zero. If the ' +
-  'result is incomplete, relay the caveat verbatim.';
+  'against `filteredTotal`. A null measure means upstream did not report it, NOT zero. These ' +
+  'figures come from a separate reporting warehouse than bet records, so they can lag or ' +
+  'disagree with find_customer_bets — never conclude a customer has not bet from zero metrics; ' +
+  'check find_customer_bets. If noDataNotice is present, relay it. If the result is incomplete, ' +
+  'relay the caveat verbatim.';
 
 export interface GetCustomerBettingMetricsResult {
   readonly accountId: string;
@@ -65,6 +72,13 @@ export interface GetCustomerBettingMetricsResult {
   readonly lifetime: MetricsFigures | null;
   readonly filteredTotal: MetricsFigures | null;
   readonly groups: MetricsGroup[];
+  /**
+   * A warning that the figures carry upstream's zero-fill signature, when they do.
+   *
+   * Optional rather than nullable: a normal answer has no such field at all, so nothing
+   * invites the model to narrate the absence of a warning.
+   */
+  readonly noDataNotice?: string;
   readonly completeness: Completeness;
 }
 
@@ -193,6 +207,11 @@ export async function getCustomerBettingMetrics(
     lifetime: projected.lifetime,
     filteredTotal: projected.filteredTotal,
     groups: projected.groups,
+    // Spread so the key is ABSENT on a normal answer rather than present-and-undefined.
+    // Deliberately NOT folded into `completeness`: this is an interpretive doubt about
+    // what the retrieved data means, not a report that something could not be retrieved,
+    // and merging the two would make `complete: false` mean two different things.
+    ...(projected.noDataNotice === undefined ? {} : { noDataNotice: projected.noDataNotice }),
     // The client's verdict, passed through untouched — a single-hop tool has nothing to
     // aggregate and no grounds to soften it.
     completeness: result.completeness

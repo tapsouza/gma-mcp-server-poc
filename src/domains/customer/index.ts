@@ -393,6 +393,10 @@ export function registerCustomerDomain(server: McpServer, deps: DomainDeps): voi
           lifetime: result.lifetime,
           filteredTotal: result.filteredTotal,
           groups: result.groups,
+          // Spread so the key is absent on a normal answer. Not logged: the notice is a
+          // fixed sentence, and whether it fired is derivable from the figures — no new
+          // log field, which would be a reviewed act (Principle V).
+          ...(result.noDataNotice === undefined ? {} : { noDataNotice: result.noDataNotice }),
           completeness: result.completeness
         });
       } catch (error) {

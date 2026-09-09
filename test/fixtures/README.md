@@ -6,8 +6,8 @@ operation a tool depends on, and a hand-crafted fixture must record that it was 
 
 ## Provenance
 
-**Every fixture in this directory is hand-crafted from the OpenAPI schema, not captured from a
-live GMA.** None has been observed against a running instance.
+**Almost every fixture in this directory is hand-crafted from the OpenAPI schema, not captured
+from a live GMA.** Two exceptions are listed at the end of this section.
 
 - **Source of truth**: `gma-api/src/main/resources/static/api_catalogue.yaml` (the v5 catalogue
   surface), as analysed in [research.md](../../specs/001-catalogue-mcp-tools/research.md) R1 and R3.
@@ -21,6 +21,18 @@ live GMA.** None has been observed against a running instance.
   [quickstart.md](../../specs/001-catalogue-mcp-tools/quickstart.md) Validation 3, not here.
 - Entity names (`Football`, `Premier League`, `Winner`) and instance codes (`PP`, `BF`) are
   illustrative. No real host, credential, or personal datum appears anywhere in this library.
+
+**The two live-derived fixtures**, both from the 2026-09-09 validation against dev GMA, each
+stating a behaviour the schema does not describe:
+
+- `customerMetrics/200-all-zero-no-data.json` — GMA's zero-fill signature, generated from
+  `CustomerMetrics.java`'s primitive/boxed split.
+- `qbsSearchBets/200-openbet-bet.json` — an OpenBet-stack bet's real leg shape, which replaced an
+  invented one.
+
+The bullet above about schema faithfulness is exactly what they exist to escape: they are the only
+two fixtures here that can contradict the declared contract and still be right, which is why each
+records its live provenance in its own section below rather than relying on this note.
 
 ### Provenance of the customer-domain fixtures (feature 004)
 
@@ -215,6 +227,7 @@ fixtures are needed to cover one status code.
 | `200-by-bet-type.json`                 | `BET_TYPE` aggregation, with lifetime and filtered totals that DIFFER, so conflating them is observable                                                                                              |
 | `200-by-hierarchy-entity.json`         | `HIERARCHY_ENTITY`, whose rows state `EVENT_TYPE` while the REQUEST body wants `EVENTTYPE` — both spellings of one level (R12)                                                                       |
 | `200-by-timeframe.json`                | `TIMEFRAME`, so all three `keyKind` discriminator values are exercised                                                                                                                               |
+| `200-all-zero-no-data.json`            | **The live one.** GMA's zero-fill signature: primitives `0`, every boxed member `null`, no bet dates — see below                                                                                     |
 | `400-multiple-hierarchy-levels.json`   | `MULTIPLE_HIERARCHY_LEVELS_NOT_COMBINABLE` → a hint saying to choose one level                                                                                                                       |
 | `400-too-many-hierarchy-entities.json` | `TOO_MANY_HIERARCHY_ENTITIES` → a hint saying to ask for fewer or aggregate broader                                                                                                                  |
 | `400-account-identifier-missing.json`  | `ACCOUNT_IDENTIFIER_MISSING` → a hint naming the argument                                                                                                                                            |
@@ -226,6 +239,22 @@ There is deliberately **no `206`**: this operation declares only `200`, `400`, `
 it has no partial-failure contract to model. That is the same conclusion as CRS but for a different
 reason — CRS is an undeclared proxy, whereas this surface declares its statuses and simply has no
 partial among them.
+
+**`200-all-zero-no-data.json` is the only fixture in this library authored from OBSERVED live
+behaviour**, and it is worth saying why it could not have come from the schema. A customer with
+**3,795 bets** returned metrics reading zero on every measure: HTTP 200, no `errors[]`, a body
+that satisfies its own contract completely. Nothing distinguishes it from a customer who has never
+bet, and a model shown it says so — a confidently wrong answer about a real person.
+
+The shape is not arbitrary. GMA fabricates rows for buckets the Data API did not return, via
+`CustomerMetrics.builder().build()` (`UnmappedCustomerMetricsResponseGenerator`, all three
+`enrichWith*` methods). Lombok leaves Java **primitives** at `0` — `int betCount`,
+`double grossStake`, `double tradingRevenue` — and every **boxed** member null:
+`Integer distinctEvents`, `Double inPlayStake`, both `LocalDate` bet dates. This fixture is
+generated field-for-field from `CustomerMetrics.java` on exactly that rule, which is what makes it
+a reproducible statement about GMA rather than a guess at what an empty response looks like.
+`hasNoDataSignature` keys on that combination, and the tool attaches `noDataNotice` rather than
+letting the zeros speak for themselves.
 
 ## The timeout outcome has no fixture, by design
 

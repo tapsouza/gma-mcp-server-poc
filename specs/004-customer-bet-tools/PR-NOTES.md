@@ -6,19 +6,35 @@ change that a reviewer should not have to reconstruct from the diff.
 ## What landed
 
 A second MCP capability domain (`customer`) alongside `catalogue`, with **five** read-only
-tools. The curated surface grows from three tools to **eight**, which is a reviewed act under
-constitution Principle IV — `test/protocol/smoke.test.ts` and `agent/test/spawn.test.ts` both
-pin the exact list, so growth cannot happen by accident.
+tools, plus one addition to the catalogue domain. The curated surface grows from three tools to
+**nine**, which is a reviewed act under constitution Principle IV —
+`test/protocol/smoke.test.ts` and `agent/test/spawn.test.ts` both pin the exact list, so growth
+cannot happen by accident.
 
-| Tool                            | Hops    | Upstream |
-| ------------------------------- | ------- | -------- |
-| `list_jurisdiction_contexts`    | 1       | `GET /crs/contexts` |
-| `get_customer_risk_profile`     | 1       | `GET /crs/accounts/{accountId}` |
-| `find_customer_bets`            | 1       | `POST /qbs/graphql` |
-| `get_bet_risk_context`          | `3 + N` | QBS, CRS ×2, `GET /v5/events/{id}` × distinct events |
-| `get_customer_betting_metrics`  | 1       | `POST /accounts/{accountId}/metrics` |
+| Tool                            | Domain      | Hops    | Upstream |
+| ------------------------------- | ----------- | ------- | -------- |
+| `list_jurisdiction_contexts`    | `customer`  | 1       | `GET /crs/contexts` |
+| `get_customer_risk_profile`     | `customer`  | 1       | `GET /crs/accounts/{accountId}` |
+| `find_customer_bets`            | `customer`  | 1       | `POST /qbs/graphql` |
+| `get_bet_risk_context`          | `customer`  | `3 + N` | QBS, CRS ×2, `GET /v5/events/{id}` × distinct events |
+| `get_customer_betting_metrics`  | `customer`  | 1       | `POST /accounts/{accountId}/metrics` |
+| `get_event`                     | `catalogue` | 1       | `GET /v5/events/{id}` |
 
-863 tests across 29 files. Coverage: 98.71% lines / 88.48% branches overall, `src/core/**` at
+**`get_event` closes a loop this feature opened.** `find_customer_bets` and
+`get_bet_risk_context` each report an event name and id per leg, and nothing could act on the id
+— there was no tool that took one. It needed **no** constitutional amendment:
+`GET /v5/events/{id}` is already in the `catalogue` row of the surface register. It is a separate
+tool rather than a fourth `get_catalogue_entity` type because the upstream response nests its
+parents where this one states them flat, the scoping parameter differs (`sources`, not
+`instancesList`), and widening `entityTypeSchema` would let `Ancestor.type` claim `'event'` — a
+level that is never any other entity's ancestor.
+
+There is deliberately **no** event *name* search: `POST /v5/searchByName` covers superclass,
+subclass and event type only (`SearchByNameResult` is a three-field record), and the one event
+listing operation requires an event-type id you must already have. The tool's description says so
+outright, because an agent that does not know will send a name and get an error it cannot fix.
+
+939 tests across 30 files. Coverage: 98.47% lines / 89.13% branches overall, `src/core/**` at
 98.28% lines — all above the constitutional thresholds, none of which was touched.
 
 ## The amendment-acceptance gate (SC-012)
@@ -86,12 +102,13 @@ the seven were found only against **live** GMA, and neither was catchable by a f
    carried a bare `contextId` that nothing could bridge to the bet's jurisdiction code, so
    every bet reported `jurisdictionNotMatched`. Mapping now happens after both hops answer.
 
-## Found only live, and why no fixture could have caught either
+## Found only live, and why no fixture could have caught any of them
 
-Both were discovered during Validation 4 against dev GMA. Both are recorded here because they
-expose a real limit of this branch's test strategy: `test/MUST-COVER.md` claims a fixture for
-every distinguishable outcome of every operation, and **neither of these outcomes can be
-produced by a fixture at all.**
+All three were discovered during Validation 4 against dev GMA. They are recorded here because
+they expose a real limit of this branch's test strategy: `test/MUST-COVER.md` claims a fixture for
+every distinguishable outcome of every operation, and **none of these outcomes could have been
+produced by a fixture derived from the schema** — each response is exactly what its schema says a
+response looks like.
 
 6. **QBS `pageNumber` is ZERO-based; we sent `1`.** That asks for the SECOND page. A single-bet
    lookup is one page long, so QBS answered HTTP 200 with `pageInfo.count: 0` and no `errors[]`
@@ -120,10 +137,43 @@ produced by a fixture at all.**
    could send would resolve it. The `gbpId` fix stands on its own merits (it removes an invented
    constant and matches GMA's join); it simply did not fix that symptom.
 
+8. **An all-zero metrics response is indistinguishable from "this customer has never bet."** A
+   customer with **3,795 bets** — confirmed via `find_customer_bets` in the same session —
+   returned metrics reading zero on every measure, in a schema-valid HTTP 200 with no `errors[]`.
+   A model shown that states the customer has never placed a bet: a **positive false claim about
+   a real person**, which makes this the most dangerous of the three, since the other two present
+   as missing data rather than as a confident finding.
+
+   The cause is deliberate on GMA's part. `UnmappedCustomerMetricsResponseGenerator` fabricates
+   rows for buckets the Data API did not return — all three `enrichWith*` methods build
+   `CustomerMetrics.builder().build()`. Lombok leaves Java **primitives** at `0` (`int betCount`,
+   `double grossStake`) and every **boxed** member null (`Integer distinctEvents`, both
+   `LocalDate` bet dates), which is a shape a real row cannot have. Metrics also come from a
+   separate reporting warehouse (`data-api…fddata-dev.net`, `dev.rb:20`) than bet records, so the
+   two can genuinely disagree.
+
+   `get_customer_betting_metrics` now attaches an optional **`noDataNotice`** when the figures
+   carry that signature, and its description forbids concluding a customer has not bet from zero
+   metrics. Three deliberate choices: a notice rather than an **error**, since the zeros may be
+   genuine for a new account and refusing would deny a legitimate question; **off** the
+   completeness axes, since the section WAS retrieved and what is uncertain is its meaning —
+   folding an interpretive doubt into `complete: false` would make that flag mean two things and
+   invite a retry that returns the same body; and keyed on the **totals**, not on individual
+   groups, because a zero-filled group is the normal, informative way "no activity in this
+   bucket" is reported.
+
+   *Why no fixture could catch it:* the response satisfies its own schema completely, so a
+   schema-derived fixture asserts exactly the behaviour that is wrong.
+   `200-all-zero-no-data.json` is generated field-for-field from `CustomerMetrics.java`'s
+   primitive/boxed split — a reproducible statement about GMA rather than a guess.
+
 **The strategy gap this leaves open.** Fixtures verify that code and fixture agree; they cannot
-verify that either matches upstream. Every one of the identifier defects on this branch was of
-that kind. The mitigation available today is quickstart.md's Validation 4, and this run is the
-argument for treating it as mandatory before release rather than optional.
+verify that either matches upstream. Every defect above was of that kind, and two of the three
+were made worse by fixtures authored from the same assumption as the code they were checking. The
+mitigation available today is quickstart.md's Validation 4, and this run is the argument for
+treating it as **mandatory** before release rather than optional. Two of the eight defects on this
+branch were reachable no other way, and the third — the all-zero metrics — would have shipped as a
+tool that confidently tells operators a customer has never bet.
 
 ## Additions to `core`, both opt-in and additive
 

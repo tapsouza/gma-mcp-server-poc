@@ -705,6 +705,12 @@ export const getCustomerBettingMetricsOutputSchema = {
     .nullable()
     .describe('Totals across the filtered set. This is what the groups below sum to.'),
   groups: z.array(metricsGroupSchema).describe('One row per bucket. May be empty.'),
+  noDataNotice: z
+    .string()
+    .optional()
+    .describe(
+      'Present ONLY when the figures carry upstream\'s "no data" signature: every measure zero or absent, and no bet dates. When present you MUST relay it and MUST NOT state that the customer has not bet — the reporting warehouse zero-fills what it has no data for, so a gap and genuine inactivity are indistinguishable here. Absent on a normal answer.'
+    ),
   completeness: completenessSchema
 };
 

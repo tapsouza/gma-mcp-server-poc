@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   errorCodeOf,
+  hasNoDataSignature,
   hintForErrorCode,
   toMetricsFigures,
   toMetricsRequestBody,
@@ -8,6 +9,7 @@ import {
   type UpstreamMetricsResponse
 } from '../../src/domains/customer/mapping/metrics.js';
 
+import allZero from '../fixtures/gma/customerMetrics/200-all-zero-no-data.json' with { type: 'json' };
 import byBetType from '../fixtures/gma/customerMetrics/200-by-bet-type.json' with { type: 'json' };
 import byHierarchy from '../fixtures/gma/customerMetrics/200-by-hierarchy-entity.json' with { type: 'json' };
 import byTimeframe from '../fixtures/gma/customerMetrics/200-by-timeframe.json' with { type: 'json' };
@@ -338,6 +340,138 @@ describe('metrics mapping (FR-013, FR-014, R12)', () => {
         filteredTotal: null,
         groups: []
       });
+    });
+  });
+
+  describe("case: upstream's zero-fill signature is WARNED about, never presented as a fact", () => {
+    /**
+     * A REGRESSION SUITE for a live defect, and the one on this surface that no fixture
+     * could have caught before it was observed.
+     *
+     * A customer with **3,795 bets** — confirmed through `find_customer_bets` in the same
+     * session — returned metrics reading zero on every measure. HTTP 200, no `errors[]`,
+     * a body that looks complete. A model shown that states "this customer has never
+     * placed a bet": a confidently wrong answer about a real person.
+     *
+     * The cause is in GMA, and is deliberate on its part.
+     * `UnmappedCustomerMetricsResponseGenerator` fabricates rows for buckets the Data API
+     * did not return — all three `enrichWith*` methods build
+     * `CustomerMetrics.builder().build()`. Lombok leaves Java PRIMITIVES at `0`
+     * (`int betCount`, `double grossStake`) and every BOXED member null
+     * (`Integer distinctEvents`, both `LocalDate` bet dates), which is the signature this
+     * detects. Metrics also come from a separate warehouse than bet records, so the two
+     * genuinely can disagree.
+     */
+    it('attaches the notice for the shape GMA zero-fill produces', () => {
+      const projected = toProjectedMetrics(upstream(allZero));
+
+      expect(projected.noDataNotice).toBeDefined();
+      // Says what is NOT known, and does not assert a cause — both a reporting gap and
+      // genuine inactivity produce this shape, and the tool cannot tell them apart.
+      expect(projected.noDataNotice).toContain('NOT evidence');
+      expect(projected.noDataNotice).toContain('find_customer_bets');
+    });
+
+    it('is ABSENT on a normal answer, so nothing invites narrating its absence', () => {
+      // Optional rather than nullable: a `noDataNotice: null` would be a field the model
+      // reads and may mention. An absent key is silent.
+      expect(toProjectedMetrics(upstream(byBetType))).not.toHaveProperty('noDataNotice');
+      expect(toProjectedMetrics(upstream(byTimeframe))).not.toHaveProperty('noDataNotice');
+    });
+
+    it('does NOT fire on a single zero measure among real ones', () => {
+      // The narrowness that makes the notice worth having. A customer with a real history
+      // and one zero measure is not a reporting gap, and a notice there would train the
+      // reader to ignore it.
+      const projected = toProjectedMetrics(
+        upstream({
+          lifetimeMetrics: { betCount: 0, grossStake: 500, firstBetDate: '2026-01-01' }
+        })
+      );
+
+      expect(projected).not.toHaveProperty('noDataNotice');
+    });
+
+    it('does NOT fire when a bet date is present, even with every measure zero', () => {
+      // A date is proof of activity, so the zero-fill hypothesis is dead — whatever else
+      // is wrong, this row was not fabricated by the builder, which leaves both dates null.
+      const projected = toProjectedMetrics(
+        upstream({ lifetimeMetrics: { betCount: 0, lastBetDate: '2026-09-01' } })
+      );
+
+      expect(projected).not.toHaveProperty('noDataNotice');
+    });
+
+    it('treats a null measure as zero-or-absent, since the boxed members ARE null', () => {
+      // The subtlety: demanding a literal `0` on every measure would miss the signature
+      // entirely, because `Integer`/`Double`/`LocalDate` members come back null.
+      expect(hasNoDataSignature(toMetricsFigures({ betCount: 0 }))).toBe(true);
+      expect(hasNoDataSignature(toMetricsFigures({}))).toBe(true);
+    });
+
+    it('reports nothing for an ABSENT section rather than warning about it', () => {
+      // No figures is not the same as empty figures. The completeness verdict is what
+      // speaks to a section that did not arrive; this notice is about what arrived.
+      expect(hasNoDataSignature(null)).toBe(false);
+      expect(toProjectedMetrics(upstream({ accountId: 'x' }))).not.toHaveProperty('noDataNotice');
+    });
+
+    it('keys on the TOTALS, not on an individual zero-filled group', () => {
+      // A zero-filled GROUP is normal and informative — it is how "you asked about this
+      // bet type and there was no activity" is reported. Warning on it would fire on most
+      // ordinary answers.
+      const projected = toProjectedMetrics(
+        upstream({
+          lifetimeMetrics: { betCount: 410, grossStake: 12500, firstBetDate: '2024-01-01' },
+          aggregatedTotalMetrics: { betCount: 120, grossStake: 3000, firstBetDate: '2024-06-01' },
+          aggregatedMetrics: [{ betType: 'SINGLE', customerMetrics: { betCount: 0 } }]
+        })
+      );
+
+      expect(projected).not.toHaveProperty('noDataNotice');
+      expect(projected.groups).toHaveLength(1);
+      expect(projected.groups[0]!.figures.betCount).toBe(0);
+    });
+
+    it('prefers LIFETIME as the signal, falling back to the filtered total', () => {
+      // Lifetime is filter-independent, so a customer with any history should have non-zero
+      // figures there — the strongest available signal. A filtered total can be legitimately
+      // empty (a week with no bets), which is why it is only consulted when lifetime is
+      // absent because the caller did not ask for it.
+      const lifetimeReal = toProjectedMetrics(
+        upstream({
+          lifetimeMetrics: { betCount: 410, firstBetDate: '2024-01-01' },
+          aggregatedTotalMetrics: { betCount: 0 }
+        })
+      );
+      expect(lifetimeReal).not.toHaveProperty('noDataNotice');
+
+      const lifetimeAbsent = toProjectedMetrics(
+        upstream({ aggregatedTotalMetrics: { betCount: 0 } })
+      );
+      expect(lifetimeAbsent.noDataNotice).toBeDefined();
+    });
+
+    it('still returns the figures themselves, rather than withholding them', () => {
+      // A notice, not an error. The zeros may be genuine — a brand-new account — and
+      // refusing to answer would deny a legitimate question. The caller gets the data
+      // plus the caveat and decides.
+      const projected = toProjectedMetrics(upstream(allZero));
+
+      expect(projected.lifetime).not.toBeNull();
+      expect(projected.lifetime!.betCount).toBe(0);
+      expect(projected.groups).toHaveLength(4);
+    });
+
+    it('leaves the completeness axes alone — this is not incompleteness', () => {
+      // `unavailableComponents` is for a section that could not be RETRIEVED. This section
+      // was retrieved; what is uncertain is what it MEANS. Folding an interpretive doubt
+      // into the completeness verdict would make `complete: false` mean two things
+      // (Principle II's no-merging rule, read one step out).
+      const projected = toProjectedMetrics(upstream(allZero));
+
+      expect(projected).not.toHaveProperty('completeness');
+      expect(projected).not.toHaveProperty('unavailableComponents');
     });
   });
 

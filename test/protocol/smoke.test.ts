@@ -14,6 +14,7 @@ import crsContexts from '../fixtures/gma/crsContexts/200-success.json' with { ty
 import event200 from '../fixtures/gma/events/200-success.json' with { type: 'json' };
 import crsAccount from '../fixtures/gma/crsAccounts/200-three-jurisdictions.json' with { type: 'json' };
 import metricsByBetType from '../fixtures/gma/customerMetrics/200-by-bet-type.json' with { type: 'json' };
+import metricsAllZero from '../fixtures/gma/customerMetrics/200-all-zero-no-data.json' with { type: 'json' };
 
 /**
  * MCP protocol smoke test.
@@ -526,6 +527,33 @@ describe('MCP protocol smoke', () => {
       expect(structured.groups.length).toBeGreaterThan(0);
       // `vipManager` names a member of staff and must not cross the protocol.
       expect(JSON.stringify(structured)).not.toContain('vipManager');
+
+      await close();
+    });
+
+    it('carries noDataNotice across the protocol when upstream answers all-zero', async () => {
+      // The registration layer is where the notice becomes part of the payload, and a
+      // spread that dropped it would leave every other test passing.
+      gma.use(
+        http.post(`${GMA_BASE_URL}/accounts/:accountId/metrics`, () =>
+          HttpResponse.json(metricsAllZero)
+        )
+      );
+      const { client, close } = await connect();
+
+      const result = await client.callTool({
+        name: 'get_customer_betting_metrics',
+        arguments: { accountId: 'acct-test-0001', aggregation: 'TIMEFRAME' }
+      });
+
+      const structured = result.structuredContent as { noDataNotice?: string };
+      expect(structured.noDataNotice).toContain('NOT evidence');
+      // A successful result, not an error: the figures are data, their meaning is caveated.
+      expect(result.isError).toBeFalsy();
+      // Present in the TEXT mirror too, so a client that reads only text still sees it —
+      // the same rule the completeness verdict follows.
+      const text = (result.content as { type: string; text: string }[])[0]!.text;
+      expect(JSON.parse(text).noDataNotice).toContain('NOT evidence');
 
       await close();
     });

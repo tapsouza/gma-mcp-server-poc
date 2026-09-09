@@ -197,19 +197,117 @@ export interface ProjectedMetrics {
   readonly lifetime: MetricsFigures | null;
   readonly filteredTotal: MetricsFigures | null;
   readonly groups: MetricsGroup[];
+  /**
+   * Present when the figures carry GMA's zero-fill signature — see `noDataNotice`.
+   *
+   * Absent (rather than `null`) on a normal answer, so a reader of the payload sees no
+   * field at all when there is nothing to warn about.
+   */
+  readonly noDataNotice?: string;
+}
+
+/**
+ * The sentence attached when every figure is zero-or-absent.
+ *
+ * Deliberately says what is NOT known rather than asserting a cause. Both readings are
+ * live and this tool cannot tell them apart, so naming one would be a guess.
+ */
+export const NO_DATA_NOTICE =
+  'Upstream reported no metrics data for this customer. This is NOT evidence the customer ' +
+  'has not bet: the metrics service zero-fills periods and buckets it has no data for, so a ' +
+  'reporting gap and genuine inactivity look identical here. Betting metrics come from a ' +
+  'separate reporting warehouse than bet records, and the two can disagree. Say that the ' +
+  'figures are unavailable, and use find_customer_bets to establish whether bets exist.';
+
+/**
+ * True when the figures are all zero-or-absent — GMA's zero-fill signature.
+ *
+ * ## The live finding this exists for
+ *
+ * A customer with **3,795 bets** returned metrics reading zero on every measure. Nothing
+ * in the response said so: HTTP 200, no `errors[]`, a complete-looking body. A model shown
+ * that will state "this customer has never placed a bet", which is a confidently wrong
+ * answer about a real person — the exact failure mode Principle II exists to prevent.
+ *
+ * ## Why the signature is `zeros AND absent dates`, not zeros alone
+ *
+ * GMA fabricates rows for buckets the Data API did not return, via
+ * `CustomerMetrics.builder().build()` (`UnmappedCustomerMetricsResponseGenerator`, all
+ * three `enrichWith*` methods). That leaves Java PRIMITIVE members at their default `0`
+ * — `int betCount`, `double grossStake`, `double tradingRevenue` — while every BOXED
+ * member stays null: `Integer distinctEvents`, `Integer playerDays`, `Double inPlayStake`,
+ * and both `LocalDate` bet dates.
+ *
+ * So the fabricated row has a shape a real row cannot have. A customer who genuinely
+ * placed no bets also has no bet dates, which is why dates alone are not the test; and a
+ * customer with real activity has a non-zero measure somewhere. Requiring BOTH keeps the
+ * notice off a row that merely has a zero in it.
+ *
+ * ## Why a notice rather than an error, and why not `unavailableComponents`
+ *
+ * The figures may be genuinely zero — a brand-new account. Erroring would refuse to answer
+ * a legitimate question. And `unavailableComponents` is for a section this tool could not
+ * retrieve; the section WAS retrieved, and what is uncertain is what it means. Overloading
+ * the completeness axes with an interpretive doubt would make `complete: false` mean two
+ * different things (Principle II forbids merging the axes; this is the same rule read one
+ * step out).
+ */
+export function hasNoDataSignature(figures: MetricsFigures | null): boolean {
+  if (figures === null) return false;
+
+  // A real bet has a date. Both absent is necessary but NOT sufficient — a genuinely
+  // inactive customer looks the same here, which is why the zero check follows.
+  if (figures.firstBetDate !== null || figures.lastBetDate !== null) return false;
+
+  const measures = [
+    figures.betCount,
+    figures.grossStake,
+    figures.settledStake,
+    figures.averageStake,
+    figures.tradingRevenue,
+    figures.tradingMargin,
+    figures.expectedMargins,
+    figures.inPlayStake,
+    figures.averageLegsPerBet,
+    figures.averageLegPrice,
+    figures.distinctEvents,
+    figures.playerDays,
+    figures.nearLimitBet
+  ];
+
+  // `null` counts as zero-or-absent: the boxed members are exactly what the zero-fill
+  // leaves null, so demanding a literal 0 everywhere would miss the signature entirely.
+  return measures.every((measure) => measure === null || measure === 0);
 }
 
 /** Project the whole response into the curated shape. Pure. */
 export function toProjectedMetrics(
   response: UpstreamMetricsResponse | null | undefined
 ): ProjectedMetrics {
+  const lifetime = toMetricsFigures(response?.lifetimeMetrics);
+  const filteredTotal = toMetricsFigures(response?.aggregatedTotalMetrics);
+  const groups = (response?.aggregatedMetrics ?? []).flatMap((raw) => {
+    const group = toGroup(raw);
+    return group === null ? [] : [group];
+  });
+
+  // Keyed on the TOTALS, not on the groups. An individual zero-filled group is normal and
+  // informative — it is how "you asked about this bet type and there was no activity" is
+  // reported. It is the totals reading empty that means the figures cannot be trusted as
+  // a statement about the customer.
+  //
+  // `lifetime` is checked when present because it is the filter-independent measure: a
+  // customer with any history at all should have non-zero lifetime figures, so a zero-fill
+  // signature there is the strongest available signal. When it is absent — the caller did
+  // not ask for it — the filtered total is the fallback.
+  const suspect =
+    lifetime !== null ? hasNoDataSignature(lifetime) : hasNoDataSignature(filteredTotal);
+
   return {
-    lifetime: toMetricsFigures(response?.lifetimeMetrics),
-    filteredTotal: toMetricsFigures(response?.aggregatedTotalMetrics),
-    groups: (response?.aggregatedMetrics ?? []).flatMap((raw) => {
-      const group = toGroup(raw);
-      return group === null ? [] : [group];
-    })
+    lifetime,
+    filteredTotal,
+    groups,
+    ...(suspect ? { noDataNotice: NO_DATA_NOTICE } : {})
   };
 }
 
