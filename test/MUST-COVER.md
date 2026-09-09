@@ -4,7 +4,8 @@ The constitution (v1.0.2, _Development Workflow & Quality Gates_) makes these ca
 **blocking**, and requires each to be "covered by a test naming the case". This file is the
 audit: every row names the `describe('case: …')` block that covers it.
 
-Verified by `npm test` — 3 tool suites, 8 unit suites, 1 protocol suite.
+Verified by `npm test` — 4 catalogue tool suites, 5 customer tool suites, unit suites, and 1
+protocol suite.
 
 ## Quickstart must-cover list
 
@@ -45,6 +46,28 @@ Each N/A is asserted, not assumed: the test states why the outcome cannot arise 
 structural fact that makes it so (no query parameter; a single hop). If a later change gave one
 of these tools a second hop or a search input, the corresponding row stops being N/A and needs a
 real test — the assertion is what will make that visible.
+
+### `get_event` (the fourth catalogue tool)
+
+Covered in `integration/getEvent.test.ts`, which states every outcome above plus three specific
+to it. Its N/A rows match `get_catalogue_entity`'s and for the same structural reasons — one id,
+one hop — so they are not repeated.
+
+| Case                                                                                                | Named test block                                                                       |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| The event resolves with a broadest-first path and its markets                                       | `case: an event resolves with its hierarchy and markets`                               |
+| **Both id forms accepted, and the `source` READ from the value** — never defaulted to `gpd`         | `case: both id forms are accepted, and the source is never invented`                   |
+| **A bare number is rejected before any upstream call**, with a hint naming where real ids come from | `case: a bare number is a self-correctable argument error, and costs NO upstream call` |
+| Scoping sends **`sources`**, never the silently-ignored `instancesList`                             | `case: scoping uses \`sources\`, the name THIS operation declares`                     |
+| 206 / 400 / 401 / 404 / 500 and a 200 carrying no event are each distinguishable                    | `case: every upstream outcome is distinguishable`                                      |
+| A degraded event body omits what is missing rather than inventing it                                | `case: a partial event body degrades rather than failing`                              |
+| The description states there is **no event-name search**, because no upstream operation offers one  | `case: the description tells the model there is no event NAME search`                  |
+
+The middle two are the ones worth keeping. A hardcoded `gpd` namespace is **invisible** while
+every live id happens to carry `gpd` — which they all do — so only an assertion on a
+non-`gpd` source can fail when someone reintroduces the constant. And rejecting a bare id
+_before_ the call is what makes the failure self-correctable rather than a 400 the agent cannot
+interpret.
 
 ## Fixture coverage
 

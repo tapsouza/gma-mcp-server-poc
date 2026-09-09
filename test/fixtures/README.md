@@ -178,6 +178,11 @@ the gap the SC-011 audit exists to catch. Note the **`sources`** parameter: this
 declares its instance scoping as `sources`, not `instancesList` (`api_catalogue.yaml`,
 `getEventById` → `sourcesParam`), and a wrong name is silently ignored rather than rejected.
 
+**Two tools now share these fixtures**, which is why they live under a status-keyed directory
+rather than beside either one: the composite's hop 4 (`get_bet_risk_context`) and the standalone
+`get_event`. The latter is the catalogue domain's, so a fixture change here affects both domains
+— the one place in this library where that is true.
+
 The three id/name pairs are chosen so the **FR-019 join is provable**: `3` / `7` / `3307` are the
 same entities the `crsAccounts/` overrides name, stated here as URNs (`urn:sbk:pc:spc:gpd:3`) and
 there bare (`"3"`), which is how the two systems really differ. A fixture that used one vocabulary

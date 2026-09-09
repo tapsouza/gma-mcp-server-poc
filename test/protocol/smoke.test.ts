@@ -61,7 +61,7 @@ describe('MCP protocol smoke', () => {
       // An EXACT list, deliberately. The surface is curated, never generated from
       // GMA's API, and expanding it is governed by Principle IV rather than by
       // convenience — so growth means editing this assertion, which is the reviewed
-      // act. Three catalogue tools plus the customer domain's five.
+      // act. Four catalogue tools plus the customer domain's five.
       expect(tools.map((t) => t.name).sort()).toEqual([
         'find_catalogue_entity',
         'find_customer_bets',
@@ -69,11 +69,18 @@ describe('MCP protocol smoke', () => {
         'get_catalogue_entity',
         'get_customer_betting_metrics',
         'get_customer_risk_profile',
+        'get_event',
         'list_instances',
         'list_jurisdiction_contexts'
       ]);
-      // Exactly eight: three catalogue tools plus the customer domain's five (FR-001).
-      expect(tools).toHaveLength(8);
+      // Exactly nine: four catalogue tools plus the customer domain's five.
+      //
+      // `get_event` is the ninth, added so a bet leg's event id becomes actionable —
+      // `find_customer_bets` reports one per leg and nothing could act on it. It calls
+      // `GET /v5/events/{id}`, already present in the catalogue row of the constitution's
+      // surface register, so the operation needed no amendment; the TOOL count changing
+      // is the reviewed act, and this line is where it is reviewed.
+      expect(tools).toHaveLength(9);
       for (const tool of tools) {
         expect(tool.description).toBeDefined();
         expect(tool.description!.length).toBeGreaterThan(0);
@@ -185,6 +192,54 @@ describe('MCP protocol smoke', () => {
       expect(structured.completeness.complete).toBe(false);
       expect(structured.completeness.failedInstances).toEqual(['urn:i:BF:BF']);
       expect(structured.completeness.caveat).toContain('urn:i:BF:BF');
+
+      await close();
+    });
+
+    it('round-trips get_event, turning a bet leg id into a catalogue position', async () => {
+      // The registration layer is the only place argument threading and per-tool logging
+      // exist, and neither is reachable by calling `getEvent` directly.
+      gma.use(http.get(`${GMA_BASE_URL}/v5/events/:id`, () => HttpResponse.json(event200)));
+      const { client, close } = await connect();
+
+      // The SHORT form, exactly as a bet leg reports it — the form this tool exists to
+      // make actionable.
+      const result = await client.callTool({
+        name: 'get_event',
+        arguments: { id: 'gpd:9201' }
+      });
+
+      expect(result.isError).toBeFalsy();
+      const structured = result.structuredContent as {
+        event: { name: string; ancestors: { type: string }[]; markets: unknown[] };
+        completeness: { complete: boolean };
+      };
+      expect(structured.event.name).toBe('Team A v Team B');
+      expect(structured.event.ancestors.map((a) => a.type)).toEqual([
+        'superclass',
+        'subclass',
+        'eventType'
+      ]);
+      expect(structured.event.markets).toHaveLength(2);
+      expect(structured.completeness.complete).toBe(true);
+
+      await close();
+    });
+
+    it('surfaces a bare event id as an MCP error, before any upstream call', async () => {
+      // No GMA handler: `onUnhandledRequest: 'error'` means a call would fail this test.
+      // The error must reach the agent as an MCP error rather than as a payload, since a
+      // failure that looks like data is the failure Principle II exists to prevent.
+      const { client, close } = await connect();
+
+      const result = await client.callTool({
+        name: 'get_event',
+        arguments: { id: '14643022' }
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toBeUndefined();
+      expect(result._meta).toMatchObject({ kind: 'argument', retryable: false });
 
       await close();
     });
