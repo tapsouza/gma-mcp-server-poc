@@ -439,9 +439,11 @@ correspond yields no override in scope on a `resolved` leg, never a fabricated o
 
 ## Not done, and why
 
-- **T067** (`npm run agent`, quickstart Validation 3) and **T068** (closing R9/R14/R8) both
-  require a live GMA token and an interactive session. The harness builds and its offline suite
-  passes; the manual walkthrough is a pre-release step.
+- ~~**T067** and **T068** require a live GMA token and an interactive session~~ — **both ran**
+  on 2026-09-09 and are marked `[X]`. See "Validation 3" above and the R8/R9/R14 table. Recorded
+  here because the outcome corrected the task's own premise: T067's text said "no live GMA
+  needed", and that is wrong — every ask in Validation 3 requires a tool call that returns DATA,
+  so the walkthrough needs a token. Every task in `tasks.md` is now complete.
 - ~~**Two `agent/test/cli.test.ts` failures are pre-existing at `HEAD`**~~ — **now fixed**, see
   below. They were pre-existing and not caused by this change, but "the fix is for the harness to
   isolate the child's environment" turned out to be a two-line change, so leaving it undone was
