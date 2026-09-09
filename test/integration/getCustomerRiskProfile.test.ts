@@ -368,6 +368,39 @@ describe('get_customer_risk_profile (Story 1, P1)', () => {
     });
   });
 
+  describe('case: an upstream 400 does NOT send the agent to check an instance code', () => {
+    it('omits the list_instances hint, which this operation has no argument for', async () => {
+      /**
+       * A REGRESSION SUITE for a live misdirection.
+       *
+       * CRS returned `400` for every request — including `GET /crs/contexts`, which takes no
+       * argument at all — and the `argument` guidance said unconditionally "If an instance
+       * code was rejected, call list_instances for the valid codes." Directed at its
+       * arguments, the agent concluded the ACCOUNT IDENTIFIER was invalid and told the user
+       * to double-check it. The identifier was valid; CRS was down.
+       *
+       * Advice naming the wrong argument is worse than none: it steers the diagnosis away
+       * from the truth, and the agent relays that to a human as a claim about their input.
+       * A customer-domain call is scoped by the account identifier alone — there is no
+       * instance code to have been rejected.
+       */
+      server.use(
+        http.get(CRS_ACCOUNT, () => HttpResponse.json({ message: 'bad request' }, { status: 400 }))
+      );
+
+      const error = await getCustomerRiskProfile(client(), TEST_TOKEN, {
+        accountId: 'acct-test-0001'
+      }).catch((e) => e as ToolError);
+
+      expect(error.kind).toBe('argument');
+      expect(error.message).not.toContain('list_instances');
+      // The actionable half survives; only the wrong-argument hint is gone.
+      expect(error.message).toMatch(/does not need the user/i);
+      // And the identifier is still never echoed (FR-030).
+      expect(error.message).not.toContain('acct-test-0001');
+    });
+  });
+
   describe('case: the description instructs the agent as FR-006 and FR-009 require', () => {
     it('forbids summarising across jurisdictions, in those words', () => {
       expect(GET_CUSTOMER_RISK_PROFILE_DESCRIPTION).toMatch(/never summarise/i);

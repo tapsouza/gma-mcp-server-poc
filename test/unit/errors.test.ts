@@ -86,10 +86,47 @@ describe('error mapping', () => {
       expect(error.message).toMatch(/does not need the user/i);
     });
 
-    it('points an unknown instance code at list_instances (FR-017)', () => {
-      const error = fromHttpStatus(400, 'GET /v5/instances');
+    it('points an unknown instance code at list_instances for an INSTANCE-SCOPED call (FR-017)', () => {
+      const error = fromHttpStatus(400, 'GET /v5/instances', true);
 
       expect(error.message).toContain('list_instances');
+    });
+
+    it('does NOT mention instance codes for an operation that takes none', () => {
+      // A live misdirection this prevents. CRS returned `400` for both
+      // `GET /crs/accounts/{accountId}` and `GET /crs/contexts` — the second takes NO
+      // argument at all — and the unconditional hint told the agent to check an instance
+      // code it had never supplied. Directed at its arguments, the agent concluded the
+      // ACCOUNT IDENTIFIER was invalid and told the user to double-check it. It was
+      // valid; CRS was failing every request.
+      //
+      // Advice naming the wrong argument is worse than none: it does not just fail to
+      // help, it steers the diagnosis away from the truth and the agent relays that to a
+      // human as a claim about their input.
+      const error = fromHttpStatus(400, 'GET /crs/contexts');
+
+      expect(error.kind).toBe('argument');
+      expect(error.message).not.toContain('list_instances');
+      // The actionable half is still there — only the wrong-argument hint is gone.
+      expect(error.message).toMatch(/does not need the user/i);
+    });
+
+    it('defaults to omitting the hint, so a new call site cannot misdirect by accident', () => {
+      // The safe direction: an absent hint costs one reasoning step, a wrong one sends
+      // the agent to blame an argument the operation does not have.
+      expect(fromHttpStatus(400, 'GET /crs/accounts/{accountId}').message).not.toContain(
+        'list_instances'
+      );
+    });
+
+    it('attaches the hint to no other kind, even on an instance-scoped call', () => {
+      // A `500` is not the agent's arguments to fix, so instance advice there would be
+      // noise pointing at the wrong actor entirely.
+      for (const status of [401, 403, 404, 500]) {
+        expect(fromHttpStatus(status, 'GET /v5/instances', true).message).not.toContain(
+          'list_instances'
+        );
+      }
     });
 
     it('builds a local argument error with a caller-supplied hint', () => {

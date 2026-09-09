@@ -466,16 +466,17 @@ export const resolvedLegSchema = z
   })
   .describe('One bet leg together with the risk settings in scope for its catalogue position.');
 
-/** FR-018's four outcomes — NOT a form of incompleteness (FR-027). */
+/** FR-018's four outcomes plus the not-attempted case — NOT incompleteness (FR-027). */
 export const jurisdictionMatchOutcomeSchema = z
   .enum([
     'matched',
     'noConfigurationForJurisdiction',
     'jurisdictionNotMatched',
-    'jurisdictionUnknown'
+    'jurisdictionUnknown',
+    'jurisdictionMatchNotAttempted'
   ])
   .describe(
-    'matched: one configuration governed this bet, named in governingJurisdiction. noConfigurationForJurisdiction: the jurisdiction is real and the customer has no settings for it — a FACT ABOUT THE CUSTOMER. jurisdictionNotMatched: the jurisdiction could not be matched at all — a FAILURE OF THIS TOOL\'S MATCHING, not a fact about the customer. jurisdictionUnknown: the bet reported no jurisdiction. In every case except "matched" you MUST NOT tell the user the customer was on default settings.'
+    'matched: one configuration governed this bet, named in governingJurisdiction. noConfigurationForJurisdiction: the jurisdiction is real and the customer has no settings for it — a FACT ABOUT THE CUSTOMER. jurisdictionNotMatched: the jurisdiction could not be matched at all — a FAILURE OF THIS TOOL\'S MATCHING, not a fact about the customer. jurisdictionUnknown: the bet reported no jurisdiction. jurisdictionMatchNotAttempted: the customer\'s configurations could not be retrieved, so NO matching was performed — you know nothing about which settings applied, and completeness names the missing section. In every case except "matched" you MUST NOT tell the user the customer was on default settings, and you MUST NOT infer that the applied figures came from defaults — that the bet matched no configuration is not evidence about where its figures came from.'
   );
 
 /** FR-020's three-valued comparison (data-model.md section 9). */

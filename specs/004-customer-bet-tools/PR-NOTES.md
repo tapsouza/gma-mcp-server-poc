@@ -34,8 +34,8 @@ subclass and event type only (`SearchByNameResult` is a three-field record), and
 listing operation requires an event-type id you must already have. The tool's description says so
 outright, because an agent that does not know will send a name and get an error it cannot fix.
 
-939 tests across 30 files. Coverage: 98.47% lines / 89.13% branches overall, `src/core/**` at
-98.28% lines — all above the constitutional thresholds, none of which was touched.
+957 tests across 30 files. Coverage: 98.48% lines / 89.15% branches overall, `src/core/**` at
+98.29% lines — all above the constitutional thresholds, none of which was touched.
 
 ## The amendment-acceptance gate (SC-012)
 
@@ -53,7 +53,7 @@ the load-bearing result — the second completeness axis is additive.
 
 Two guards were later widened as their subjects grew, both recorded here as reviewed acts:
 
-- `test/protocol/smoke.test.ts` — the exact tool list, three → eight.
+- `test/protocol/smoke.test.ts` — the exact tool list, three → nine.
 - `test/unit/architecture.test.ts` — the completeness-construction assertion was keyed to one
   spelling of an assignment and had stopped describing its own rule. It now asserts the
   **absence** of a literal verdict outside `core/completeness.ts`, strips comments so a module
@@ -69,9 +69,9 @@ None changes the design; each corrects a document against it.
 
 ## Defects found while implementing, not anticipated by the plan
 
-Ten, and six share one shape: **an identifier stated in two vocabularies, compared in only one of
-them, failing silently.** Four of the ten were found only against **live** GMA and none of those
-was catchable by a fixture — see "Found only live" below.
+Twelve, and six share one shape: **an identifier stated in two vocabularies, compared in only one
+of them, failing silently.** **Seven** of the twelve were found only against **live** GMA and none
+of those was catchable by a fixture — see "Found only live" below.
 
 1. **`core/completeness.ts` conflated two failure axes.** `toInstanceErrors` mapped any
    top-level `errors[]` into an `InstanceError`, which is right for the v5 envelope and wrong
@@ -104,11 +104,12 @@ was catchable by a fixture — see "Found only live" below.
 
 ## Found only live, and why no fixture could have caught any of them
 
-All four were discovered during Validation 4 against dev GMA. They are recorded here because
-they expose a real limit of this branch's test strategy: `test/MUST-COVER.md` claims a fixture for
-every distinguishable outcome of every operation, and **none of these outcomes could have been
-produced by a fixture derived from the schema** — each response is exactly what its schema says a
-response looks like.
+All seven were discovered during live validation against dev GMA on 2026-09-09 (Validation 4, then
+Validation 3). They are recorded here because they expose a real limit of this branch's test
+strategy: `test/MUST-COVER.md` claims a fixture for every distinguishable outcome of every
+operation, and **none of these outcomes could have been produced by a fixture derived from the
+schema** — each response is exactly what its schema says a response looks like, and two of the
+seven are not upstream behaviours at all but things the tool failed to TELL the agent.
 
 6. **QBS `pageNumber` is ZERO-based; we sent `1`.** That asks for the SECOND page. A single-bet
    lookup is one page long, so QBS answered HTTP 200 with `pageInfo.count: 0` and no `errors[]`
@@ -143,36 +144,6 @@ response looks like.
    the OpenBet event. So the mechanism is confirmed by a case where the alternative would have
    failed, and the OpenBet 400 is confirmed as upstream's rather than ours.
 
-9. **A bet may state its jurisdiction as a context NAME, and matching compared only ids and
-   codes.** A live bet reported `INTBS1` — which is `{ contextCode: 'NJ1', contextName: 'INTBS1' }`
-   — so it matched nothing and the tool answered `jurisdictionNotMatched`, meaning "we could not
-   tell what this bet's jurisdiction is", while the governing configuration sat in the very same
-   response *named* `INTBS1`. A trader asking why the bet got its limit is told the tool could not
-   work it out.
-
-   This is the **third** instance on this branch of one identifier stated in two vocabularies and
-   compared in only one of them (after the event URN and the FR-019 override join). That is now a
-   pattern rather than a coincidence, and the lesson for the next surface is to ask, for every
-   join: *which vocabularies can each side state this identifier in?*
-
-   Fixed by resolving a name through the platform's context list, **last** (so an id or code match
-   always wins) and **only when exactly one** context bears that name. The ambiguity guard is not
-   defensive decoration: the live list has two contexts sharing id `754`, so duplicate
-   human-authored values in this data are demonstrated. On a tie the outcome stays
-   `jurisdictionNotMatched` — attributing a bet to the wrong state's settings would be a confident
-   claim about a real customer's restrictions, which is worse than admitting we cannot tell. Names
-   are deliberately NOT compared inside `corresponds`, because a name is human-authored where a
-   code is platform-issued.
-
-10. **`mechanism` was computed on every match and never surfaced.** `matchJurisdiction` has always
-    returned which step produced the answer, and its own doc comment says it exists "for the caller
-    to report" — but no field carried it out. That threw away the one signal distinguishing "the
-    context list did its job" from "we fell back to derivation and got lucky". Constitution v1.2.0
-    makes the context list primary and derivation "a fallback, never the primary mechanism"; with
-    the field discarded, an inversion of that ordering was invisible in the field, which is
-    precisely where it matters — US bets keep working and every non-US bet is confidently wrong.
-    Now surfaced as `jurisdictionMatchMechanism`.
-
 8. **An all-zero metrics response is indistinguishable from "this customer has never bet."** A
    customer with **3,795 bets** — confirmed via `find_customer_bets` in the same session —
    returned metrics reading zero on every measure, in a schema-valid HTTP 200 with no `errors[]`.
@@ -204,14 +175,82 @@ response looks like.
    primitive/boxed split — a reproducible statement about GMA rather than a guess.
 
 **The strategy gap this leaves open.** Fixtures verify that code and fixture agree; they cannot
-verify that either matches upstream. Every defect above was of that kind, and two were made worse
-by fixtures authored from the same assumption as the code they were checking. The mitigation
-available today is quickstart.md's Validation 4, and this run is the argument for treating it as
-**mandatory** before release rather than optional: **four of this branch's ten defects were
-reachable no other way**, and three of those four would have shipped as confidently wrong answers
-about real customers rather than as visible failures — that a customer has never bet, that a bet's
-jurisdiction could not be determined, and that no configuration governed a bet whose governing
-configuration was in the same response.
+verify that either matches upstream — and they cannot verify what an AGENT concludes from a
+correct payload at all. Two of the live findings (11 and 12) are of that second kind: the tool
+reported the truth and the agent still drew a false conclusion, because the payload did not
+distinguish "our logic failed" from "our logic never ran", and because an error hint named an
+argument the operation does not have.
+
+The mitigation available today is quickstart.md's Validations 3 and 4, and this run is the
+argument for treating both as **mandatory** before release rather than optional: **seven of this
+branch's twelve defects were reachable no other way**, and five of those seven would have shipped
+as confidently wrong answers about real customers rather than as visible failures — that a
+customer has never bet, that a bet's jurisdiction could not be determined, that no configuration
+governed a bet whose governing configuration was in the same response, that a bet's figures "came
+from defaults", and that a valid account identifier was invalid.
+
+9. **A bet may state its jurisdiction as a context NAME, and matching compared only ids and
+   codes.** A live bet reported `INTBS1` — which is `{ contextCode: 'NJ1', contextName: 'INTBS1' }`
+   — so it matched nothing and the tool answered `jurisdictionNotMatched`, meaning "we could not
+   tell what this bet's jurisdiction is", while the governing configuration sat in the very same
+   response *named* `INTBS1`. A trader asking why the bet got its limit is told the tool could not
+   work it out.
+
+   This is the **third** instance on this branch of one identifier stated in two vocabularies and
+   compared in only one of them (after the event URN and the FR-019 override join). That is now a
+   pattern rather than a coincidence, and the lesson for the next surface is to ask, for every
+   join: *which vocabularies can each side state this identifier in?*
+
+   Fixed by resolving a name through the platform's context list, **last** (so an id or code match
+   always wins) and **only when exactly one** context bears that name. The ambiguity guard is not
+   defensive decoration: the live list has two contexts sharing id `754`, so duplicate
+   human-authored values in this data are demonstrated. On a tie the outcome stays
+   `jurisdictionNotMatched` — attributing a bet to the wrong state's settings would be a confident
+   claim about a real customer's restrictions, which is worse than admitting we cannot tell. Names
+   are deliberately NOT compared inside `corresponds`, because a name is human-authored where a
+   code is platform-issued.
+
+10. **`mechanism` was computed on every match and never surfaced.** `matchJurisdiction` has always
+    returned which step produced the answer, and its own doc comment says it exists "for the caller
+    to report" — but no field carried it out. That threw away the one signal distinguishing "the
+    context list did its job" from "we fell back to derivation and got lucky". Constitution v1.2.0
+    makes the context list primary and derivation "a fallback, never the primary mechanism"; with
+    the field discarded, an inversion of that ordering was invisible in the field, which is
+    precisely where it matters — US bets keep working and every non-US bet is confidently wrong.
+    Now surfaced as `jurisdictionMatchMechanism`.
+
+11. **Matching ran when it had nothing to match against, and reported a match FAILURE.** With CRS
+    returning `400` for every call, hop 2 produced no configurations. Matching proceeded against
+    the empty list — which can only ever answer "nothing matched" — so the tool reported
+    `jurisdictionNotMatched`: *"we know the bet's jurisdiction and our matching failed on it"*, when
+    the truth was *"we never had anything to match against"*.
+
+    The consequence was the worst kind. The agent told the user the applied figures **"come from
+    defaults"** — the single inference `jurisdictionMatchOutcomeSchema` forbids in every
+    non-`matched` case. It was not being careless: nothing in the payload distinguished a matching
+    failure from absent inputs, and a matching failure genuinely *does* suggest the bet fell
+    through to something. The tool had reported the outcome and named both missing sections
+    correctly; the gap was that FR-018's four outcomes all assume the configurations were
+    **retrieved**, with no value for "matching was not attempted".
+
+    Fixed with a fifth outcome, `jurisdictionMatchNotAttempted`, checked **first** — before the
+    bet's own jurisdiction, since with no configurations every other answer is an artefact of an
+    empty list. Same rule as `notResolvedIdentifierUnusable` on a leg, one level up: **logic that
+    FAILED must stay separate from logic that never RAN.** Both the schema description and the tool
+    description now forbid the defaults inference explicitly, since that is where the model reads
+    it.
+
+12. **A `400` told the agent to check an instance code on operations that take none.** The
+    `argument` guidance said unconditionally "If an instance code was rejected, call
+    `list_instances` for the valid codes." CRS returned `400` for `GET /crs/accounts/{accountId}`
+    **and** `GET /crs/contexts` — the second takes no argument at all — and, directed at its
+    arguments, the agent concluded the **account identifier was invalid** and told the user to
+    double-check it. The identifier was valid; CRS was failing every request.
+
+    Advice naming the wrong argument is worse than none: it does not merely fail to help, it
+    steers the diagnosis away from the truth and the agent relays that to a human as a claim about
+    their input. The hint is now attached only when the call actually **sent** an instance list —
+    which the client knows and `errors.ts` cannot — and defaults to omitted, the safe direction.
 
 ## Additions to `core`, both opt-in and additive
 

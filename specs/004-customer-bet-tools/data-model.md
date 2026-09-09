@@ -308,7 +308,8 @@ event hop produces an identical symptom, and that decision is still open (tasks.
 
 ## 8. Jurisdiction-matching outcome — **NOT** a form of incompleteness
 
-FR-018's four outcomes, and FR-027's rule that this never touches `Completeness`.
+FR-018's four outcomes, a fifth added after live validation, and FR-027's rule that this
+never touches `Completeness`.
 
 | Value | Meaning | Configurations returned |
 |---|---|---|
@@ -316,14 +317,36 @@ FR-018's four outcomes, and FR-027's rule that this never touches `Completeness`
 | `noConfigurationForJurisdiction` | The bet's jurisdiction is known; the customer has no configuration for it | All that exist |
 | `jurisdictionNotMatched` | The bet's jurisdiction is known but matched no configuration and no known context | All that exist |
 | `jurisdictionUnknown` | The bet did not report a jurisdiction | All that exist |
+| `jurisdictionMatchNotAttempted` | The configurations could not be RETRIEVED, so no matching was performed | None — the hop failed |
 
 In **every** non-`matched` case the result returns all configurations that do exist and
-**MUST NOT** assert that default settings applied (FR-018).
+**MUST NOT** assert that default settings applied (FR-018), **nor infer that the applied
+figures came from defaults** — that a bet matched no configuration is not evidence about
+where its figures came from.
 
 Rows 2 and 3 look similar and are deliberately distinct: row 2 is a **fact about the
 customer**, row 3 is a **failure of our matching**. Folding them would make a systematic
 matching defect indistinguishable from a fact — and the defect would then be unobservable.
 Ontario (`urn:i:FD:CA-ON` vs a context observed as `NXTCANBS`) is the known row-3 case.
+
+**Row 5 was added on 2026-09-09**, after a live run in which CRS returned `400` for every
+call. Matching ran anyway against an empty configuration list — which can only ever answer
+"nothing matched" — so the tool reported row 3, a claim that *our matching failed on a
+jurisdiction we knew*, when the truth was *we never had anything to match against*. The
+agent then told the user the figures "come from defaults", the one inference this section
+forbids; it was not being careless, since nothing distinguished a matching failure from
+absent inputs, and a matching failure genuinely does suggest the bet fell through to
+something. Row 5 is checked **first**, before the bet's own jurisdiction, because with no
+configurations every other answer is an artefact of an empty list rather than a finding.
+
+This is the same rule as `notResolvedIdentifierUnusable` on a leg (§7), one level up:
+**logic that FAILED must stay separate from logic that never RAN.**
+
+A jurisdiction may also be stated by context **NAME** (live: a bet reporting `INTBS1`
+against `{ contextCode: 'NJ1', contextName: 'INTBS1' }`). Names resolve only through the
+platform context list, tried after id and code, and only when exactly one context bears the
+name — the live list contains two contexts sharing an id, so ambiguity is demonstrated, and
+on a tie the outcome stays row 3 rather than attributing a bet to the wrong jurisdiction.
 
 With R7's context lookup available, matching proceeds: exact match against the customer's
 own configurations → match against the fetched platform context list → US-state derivation

@@ -564,6 +564,67 @@ describe('get_bet_risk_context (Story 3, P3)', () => {
       ]);
     });
 
+    it('reports matching as NOT ATTEMPTED when CRS answered nothing — not as a match failure', async () => {
+      /**
+       * A REGRESSION SUITE for the exact live shape: CRS `400` on BOTH hop 2 and hop 3.
+       *
+       * Matching used to run against the resulting empty configuration list, which can only
+       * ever answer "nothing matched", so the tool reported `jurisdictionNotMatched` — a
+       * claim that OUR matching failed on a jurisdiction we knew. The agent then told the
+       * user the applied figures "come from defaults", the single inference the schema
+       * forbids, because nothing distinguished a matching failure from absent inputs.
+       */
+      server.use(
+        http.post(QBS, () => HttpResponse.json(qbsSingle)),
+        http.get(CRS_ACCOUNT, () => HttpResponse.json(crs500, { status: 500 })),
+        http.get(CRS_CONTEXTS, () => HttpResponse.json(contexts500, { status: 500 })),
+        http.get(EVENT, () => HttpResponse.json(event1))
+      );
+
+      const result = await getBetRiskContext(deps(), TEST_TOKEN, { betId: 'bet-000111' });
+
+      expect(result.jurisdictionMatch).toBe('jurisdictionMatchNotAttempted');
+      expect(result.jurisdictionMatch).not.toBe('jurisdictionNotMatched');
+      expect(result.jurisdictionMatchMechanism).toBeNull();
+      // No governing configuration is claimed, and the missing section is still named — the
+      // completeness axis and the match outcome each say their own half of the truth.
+      expect(result.governingJurisdiction).toBeUndefined();
+      expect(result.completeness.unavailableComponents).toContain('customerRiskConfiguration');
+    });
+
+    it('still reports a genuine match FAILURE when CRS DID answer', async () => {
+      // The other side of the distinction: hop 2 succeeded, so matching RAN and its verdict
+      // is about the data. Without this, the fix above could have been implemented by
+      // reporting `jurisdictionMatchNotAttempted` for every unmatched bet — which would
+      // trade one indistinguishable pair for another.
+      //
+      // Only the CONTEXT hop fails here, and that is what makes this bet unmatchable: CRS
+      // names a jurisdiction by `contextId` while the bet names it by CODE, and the context
+      // list is the only bridge. The configurations exist, so matching was possible and
+      // genuinely failed.
+      server.use(
+        http.post(QBS, () => HttpResponse.json(qbsSingle)),
+        http.get(CRS_ACCOUNT, () => HttpResponse.json(crsAccount)),
+        http.get(CRS_CONTEXTS, () => HttpResponse.json(contexts500, { status: 500 })),
+        http.get(EVENT, () => HttpResponse.json(event1))
+      );
+
+      const result = await getBetRiskContext(deps(), TEST_TOKEN, { betId: 'bet-000111' });
+
+      expect(result.jurisdictionMatch).toBe('jurisdictionNotMatched');
+      expect(result.jurisdictionMatch).not.toBe('jurisdictionMatchNotAttempted');
+      // The configurations WERE retrieved — which is exactly what makes the failure real.
+      expect(result.allJurisdictionConfigurations).toHaveLength(3);
+    });
+
+    it('forbids the defaults inference in the DESCRIPTION, where the model reads it', () => {
+      // The live failure was not the tool lying — it reported the outcome and named both
+      // missing sections. It was the agent inferring defaults from an unmatched
+      // jurisdiction, which is a description gap, so the fix belongs in the text too.
+      expect(GET_BET_RISK_CONTEXT_DESCRIPTION).toMatch(/MUST NOT infer that the applied figures/i);
+      expect(GET_BET_RISK_CONTEXT_DESCRIPTION).toMatch(/default settings/i);
+    });
+
     it('reports an unresolved leg as legCataloguePositions, never as "no overrides"', async () => {
       server.use(
         http.post(QBS, () => HttpResponse.json(qbsSingle)),

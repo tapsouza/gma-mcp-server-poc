@@ -44,13 +44,35 @@ const GUIDANCE: Readonly<Record<ErrorKind, string>> = Object.freeze({
   auth: 'The user must re-authenticate. Do not retry with different credentials, and do not report this as "no results found".',
   forbidden:
     'The identity is valid but lacks permission for this operation. Request access — do not sign in again, and do not retry.',
-  argument:
-    'Correct the arguments and try again; this does not need the user. If an instance code was rejected, call list_instances for the valid codes.',
+  argument: 'Correct the arguments and try again; this does not need the user.',
   notFound: 'No entity exists with that identifier. Report the absence rather than retrying.',
   upstream:
     'The upstream system failed and returned nothing usable. Retry once, then tell the user it is unavailable.',
   config: 'A deployment configuration value is missing or invalid. Only an operator can fix this.'
 });
+
+/**
+ * The extra sentence for a `400` on an operation that is SCOPED BY INSTANCE.
+ *
+ * ## Why this is conditional rather than part of `GUIDANCE.argument`
+ *
+ * It used to be unconditional, and that misdirected an agent in a way observed live. A
+ * `400` came back from `GET /crs/accounts/{accountId}` and `GET /crs/contexts` — **neither
+ * of which takes an instance code, and the second of which takes no argument at all** —
+ * carrying the advice "If an instance code was rejected, call list_instances for the valid
+ * codes." Having been told to look at its arguments, the agent concluded the account
+ * identifier was invalid and told the user to double-check it. The identifier was fine;
+ * CRS was returning `400` for every request, including one with nothing to malform.
+ *
+ * Advice that names the wrong argument is worse than no advice: it does not merely fail to
+ * help, it actively directs the agent's diagnosis away from the truth, and the agent
+ * relays that to a human as a claim about their input.
+ *
+ * So the hint is attached only where an instance code is genuinely a candidate cause,
+ * which the CALLER knows and this module cannot.
+ */
+const INSTANCE_SCOPED_HINT =
+  'If an instance code was rejected, call list_instances for the valid codes.';
 
 /**
  * Anything that could carry a credential is discarded here rather than redacted.
@@ -73,8 +95,16 @@ function safeUpstreamDetail(status: number, operation: string): string {
  *
  * @param operation a stable label for the GMA call, e.g. `GET /v5/instances`. Never
  *   a full URL, which could carry a query-string credential.
+ * @param instanceScoped whether this operation takes an instance list, in which case a
+ *   `400` gains the `list_instances` hint. Defaults to `false` — the safe direction,
+ *   since an absent hint costs an agent one reasoning step while a WRONG one sends it to
+ *   blame an argument the operation does not have (see `INSTANCE_SCOPED_HINT`).
  */
-export function fromHttpStatus(status: number, operation: string): ToolError {
+export function fromHttpStatus(
+  status: number,
+  operation: string,
+  instanceScoped = false
+): ToolError {
   if (status === 200 || status === 206) {
     throw new Error(
       `fromHttpStatus received HTTP ${status}, which is a success carrying a completeness ` +
@@ -83,9 +113,14 @@ export function fromHttpStatus(status: number, operation: string): ToolError {
   }
 
   const kind = STATUS_TO_KIND[status] ?? 'upstream';
+  const guidance =
+    kind === 'argument' && instanceScoped
+      ? `${GUIDANCE.argument} ${INSTANCE_SCOPED_HINT}`
+      : GUIDANCE[kind];
+
   return new ToolError(
     kind,
-    `${safeUpstreamDetail(status, operation)} ${GUIDANCE[kind]}`,
+    `${safeUpstreamDetail(status, operation)} ${guidance}`,
     RETRYABLE[kind]
   );
 }

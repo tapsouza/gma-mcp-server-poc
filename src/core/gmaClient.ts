@@ -220,7 +220,11 @@ export function createGmaClient({ config, fetchImpl, logger }: GmaClientDeps): G
     const status = response.status;
 
     if (status !== 200 && status !== 206) {
-      const baseError = errorFromStatus(status, operation);
+      // The hint about instance codes is attached only when this call actually SENT an
+      // instance list — the client knows, and `errors.ts` cannot. A CRS call carries
+      // none, so a `400` there no longer advises the agent to check a code it never
+      // supplied (which live sent it off blaming a valid account identifier instead).
+      const baseError = errorFromStatus(status, operation, options.instances !== undefined);
 
       // An opt-in, caller-composed hint. The body is read only when a caller asked for
       // it, and only the caller's own sentence is appended — never upstream text.

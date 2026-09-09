@@ -331,23 +331,91 @@ describe('jurisdiction matching (FR-018)', () => {
     });
   });
 
-  describe('case: ALL FOUR outcomes are reachable and each is exercised (SC-004)', () => {
-    it('produces every one of the four values', () => {
+  describe('case: ALL FIVE outcomes are reachable and each is exercised (SC-004)', () => {
+    it('produces every one of the five values', () => {
       const configurations = [configuration(NJ)];
       const outcomes = [
         matchJurisdiction('ctx-us-nj', configurations, PLATFORM_CONTEXTS).match,
         matchJurisdiction('ctx-us-pa', configurations, PLATFORM_CONTEXTS).match,
         matchJurisdiction('unrecognisable', configurations, PLATFORM_CONTEXTS).match,
-        matchJurisdiction(null, configurations, PLATFORM_CONTEXTS).match
+        matchJurisdiction(null, configurations, PLATFORM_CONTEXTS).match,
+        matchJurisdiction('ctx-us-nj', [], PLATFORM_CONTEXTS, false).match
       ];
 
       expect(outcomes).toEqual([
         'matched',
         'noConfigurationForJurisdiction',
         'jurisdictionNotMatched',
-        'jurisdictionUnknown'
+        'jurisdictionUnknown',
+        'jurisdictionMatchNotAttempted'
       ]);
-      expect(new Set(outcomes).size).toBe(4);
+      expect(new Set(outcomes).size).toBe(5);
+    });
+  });
+
+  describe('case: matching NOT ATTEMPTED is distinct from matching that FAILED', () => {
+    /**
+     * A REGRESSION SUITE for a live defect, and the reason the fifth outcome exists.
+     *
+     * CRS returned `400` for every call, so hop 2 produced no configurations. Matching ran
+     * anyway against an empty list — which can only ever answer "nothing matched" — and the
+     * tool reported `jurisdictionNotMatched`: *"we know the jurisdiction and our matching
+     * failed on it"*, when the truth was *"we never had anything to match against"*.
+     *
+     * The agent then said the applied figures "come from defaults" — the one inference the
+     * schema forbids in every non-`matched` case. It was not being careless: nothing
+     * distinguished a matching failure from absent inputs, and a matching failure genuinely
+     * does suggest the bet fell through to something.
+     */
+    it('reports jurisdictionMatchNotAttempted when the configurations were never retrieved', () => {
+      const result = matchJurisdiction('INTBS1', [], PLATFORM_CONTEXTS, false);
+
+      expect(result.match).toBe('jurisdictionMatchNotAttempted');
+      expect(result.governing).toBeNull();
+      expect(result.mechanism).toBeNull();
+    });
+
+    it('stays DISTINCT from jurisdictionNotMatched, which blames OUR matching', () => {
+      // The assertion that keeps a missing hop from masquerading as a finding. Same rule as
+      // `notResolvedIdentifierUnusable` on a leg, one level up: logic that FAILED must stay
+      // separate from logic that never RAN.
+      const notAttempted = matchJurisdiction('anything', [], PLATFORM_CONTEXTS, false);
+      const failed = matchJurisdiction('anything', [configuration(NJ)], PLATFORM_CONTEXTS);
+
+      expect(notAttempted.match).toBe('jurisdictionMatchNotAttempted');
+      expect(failed.match).toBe('jurisdictionNotMatched');
+      expect(notAttempted.match).not.toBe(failed.match);
+    });
+
+    it('takes precedence over every other outcome, including jurisdictionUnknown', () => {
+      // Checked FIRST, before the bet's own jurisdiction: with no configurations, any other
+      // answer is an artefact of an empty list rather than a finding. Even a bet that
+      // reported no jurisdiction must not be described as "the bet told us nothing" when we
+      // also had nothing to compare it against.
+      expect(matchJurisdiction(null, [], PLATFORM_CONTEXTS, false).match).toBe(
+        'jurisdictionMatchNotAttempted'
+      );
+      expect(matchJurisdiction('ctx-us-nj', [configuration(NJ)], null, false).match).toBe(
+        'jurisdictionMatchNotAttempted'
+      );
+    });
+
+    it('defaults to ATTEMPTED, so existing callers are unchanged', () => {
+      // Additive: a caller that always has configurations passes three arguments and gets
+      // exactly the behaviour it always had.
+      expect(matchJurisdiction('ctx-us-nj', [configuration(NJ)], PLATFORM_CONTEXTS).match).toBe(
+        'matched'
+      );
+    });
+
+    it('never reports NOT ATTEMPTED when configurations WERE retrieved but are empty', () => {
+      // A genuinely empty configuration list is a FACT about the customer, not a failure:
+      // they have no settings anywhere. That must stay reportable, and it is why this is a
+      // flag from the caller rather than inferred from `configurations.length`.
+      const result = matchJurisdiction('ctx-us-pa', [], PLATFORM_CONTEXTS, true);
+
+      expect(result.match).toBe('noConfigurationForJurisdiction');
+      expect(result.match).not.toBe('jurisdictionMatchNotAttempted');
     });
   });
 

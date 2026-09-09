@@ -121,7 +121,9 @@ export const GET_BET_RISK_CONTEXT_DESCRIPTION =
   'were IN SCOPE for it. Supply exactly one of betId or receiptId. It does NOT and CANNOT explain ' +
   'how any limit was calculated — that formula is not available to this system, so never narrate ' +
   'one. Read jurisdictionMatch FIRST: only "matched" means a specific configuration governed this ' +
-  'bet, and in every other case you MUST NOT tell the user the customer was on default settings. ' +
+  'bet, and in every other case you MUST NOT tell the user the customer was on default settings ' +
+  'and MUST NOT infer that the applied figures came from defaults — an unmatched jurisdiction says ' +
+  'nothing about where the figures came from. ' +
   'For a multi-leg bet, relay attributionNotice: the applied figures are bet-level. Check each ' +
   "leg's resolution before reading its overridesInScope — an empty override list on an unresolved " +
   'leg does NOT mean unrestricted. If the result is incomplete, relay the caveat verbatim.';
@@ -385,7 +387,12 @@ export async function getBetRiskContext(
   const outcome = matchJurisdiction(
     bet.jurisdiction ?? bet.catalogueInstanceId,
     configurations,
-    platformContexts
+    platformContexts,
+    // Hop 2 answering is what makes matching MEANINGFUL. When it failed, matching
+    // against the resulting empty list could only ever say "nothing matched" — a claim
+    // about our matching rather than about the missing hop, and the shape that led an
+    // agent to tell a user the bet "came from defaults".
+    !components.includes('customerRiskConfiguration')
   );
   const governing =
     outcome.match === 'matched'

@@ -51,7 +51,7 @@ import type { CustomerRiskConfiguration, JurisdictionRef } from './schemas.js';
  * data that is in fact whole, devaluing every genuine caveat.
  */
 
-/** FR-018's four distinguishable outcomes. */
+/** FR-018's four outcomes, plus the not-attempted case. */
 export type JurisdictionMatch =
   /** The bet's jurisdiction matched one of the customer's configurations. */
   | 'matched'
@@ -60,7 +60,29 @@ export type JurisdictionMatch =
   /** The jurisdiction is known but matched no configuration and no known context. */
   | 'jurisdictionNotMatched'
   /** The bet did not report a jurisdiction at all. */
-  | 'jurisdictionUnknown';
+  | 'jurisdictionUnknown'
+  /**
+   * Matching was NOT ATTEMPTED, because the configurations could not be retrieved.
+   *
+   * ## The live defect this outcome exists for
+   *
+   * When CRS returned `400` for every call, hop 2 produced no configurations. Matching
+   * ran anyway, against an empty list — which can only ever answer "nothing matched" —
+   * and the tool reported `jurisdictionNotMatched`. That reads as *"we know the bet's
+   * jurisdiction and our matching failed on it"*, when the truth was *"we never had
+   * anything to match against"*.
+   *
+   * The agent then did the predictable thing and said the applied figures "come from
+   * defaults" — the single inference `jurisdictionMatchOutcomeSchema` forbids in every
+   * non-`matched` case. It was not being careless: nothing in the payload distinguished
+   * a matching failure from absent inputs, and a matching failure genuinely does suggest
+   * the bet fell through to something.
+   *
+   * So this is the same rule as `notResolvedIdentifierUnusable` on a leg, one level up:
+   * **the case where our logic failed must stay separate from the case where our logic
+   * never ran.** Folding them lets a missing section masquerade as a finding.
+   */
+  | 'jurisdictionMatchNotAttempted';
 
 /** How the match was reached, for the caller to report. A mechanism, never a value. */
 export type MatchMechanism = 'ownConfiguration' | 'platformContextList' | 'derivation' | null;
@@ -194,12 +216,25 @@ function uniqueContextByName(
  *   hop FAILED. `null` is meaningfully different from `[]`: the first means we could
  *   not look, the second means the platform reported no jurisdictions. Both fall
  *   through to derivation, but only the first is worth reporting as a missing section.
+ * @param configurationsRetrieved whether the configurations were actually FETCHED.
+ *   `false` means hop 2 failed, and matching is not attempted at all — see
+ *   `jurisdictionMatchNotAttempted`. Defaults to `true` so callers that always have
+ *   configurations are unchanged.
  */
 export function matchJurisdiction(
   betJurisdiction: string | null,
   configurations: readonly CustomerRiskConfiguration[],
-  platformContexts: readonly JurisdictionRef[] | null
+  platformContexts: readonly JurisdictionRef[] | null,
+  configurationsRetrieved = true
 ): JurisdictionMatchOutcome {
+  // Checked FIRST, before the bet's own jurisdiction. With no configurations there is
+  // nothing to match against whatever the bet said, so every other outcome would be an
+  // artefact of an empty list rather than a finding — and `jurisdictionNotMatched` in
+  // particular would blame our matching for a hop that never answered.
+  if (!configurationsRetrieved) {
+    return { match: 'jurisdictionMatchNotAttempted', governing: null, mechanism: null };
+  }
+
   // The bet told us nothing. Distinct from every other outcome, because there is
   // nothing here to have matched or failed to match.
   if (betJurisdiction === null || betJurisdiction.trim().length === 0) {
