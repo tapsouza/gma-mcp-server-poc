@@ -36,7 +36,8 @@ separately-shippable fallback (FR-033). No file under `src/` changes.
 ## Technical Context
 
 **Language/Version**: TypeScript 6.x on Node.js 22 (`>=22.0.0 <23`, per `package.json` engines).
-`process.loadEnvFile()` — a Node 22 builtin — removes any need for a dotenv dependency.
+Node 22's own `--env-file-if-exists` flag removes any need for a dotenv dependency. (Amended
+2026-09-09: originally `process.loadEnvFile()` in code — see contracts/config.md, `.env` loading.)
 
 **Primary Dependencies** (all resolved and version-verified in research.md R5):
 
@@ -163,8 +164,9 @@ gma-mcp-server-poc/
 ├── src/                          # UNCHANGED — gates unchanged (FR-025, SC-012)
 ├── test/                         # UNCHANGED — npm test byte-identical (FR-026, SC-011)
 ├── agent/                        # NEW — outside the constitutional fence
-│   ├── main.ts                   # Entrypoint. loadEnvFile() FIRST, before any import
-│   │                             #   that reads env at module scope.
+│   ├── main.ts                   # Entrypoint. Loads NO env file itself — `.env` comes
+│   │                             #   from --env-file-if-exists on the `agent` script,
+│   │                             #   so the suite's spawns cannot inherit it.
 │   ├── config.ts                 # Validate agent + child config; fail before spawn (FR-010)
 │   ├── auth/
 │   │   ├── resolve.ts            # Precedence ladder (FR-015) — pure, injected clock + fetch

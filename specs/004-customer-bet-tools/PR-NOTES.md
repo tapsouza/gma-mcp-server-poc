@@ -442,8 +442,47 @@ correspond yields no override in scope on a `resolved` leg, never a fabricated o
 - **T067** (`npm run agent`, quickstart Validation 3) and **T068** (closing R9/R14/R8) both
   require a live GMA token and an interactive session. The harness builds and its offline suite
   passes; the manual walkthrough is a pre-release step.
-- **Two `agent/test/cli.test.ts` failures are pre-existing at `HEAD`**, and are not caused by
-  this change: the repo's local `.env` leaks into the spawned child, so the tests that assert
-  exit `78`/`77` for *missing* configuration find it present. Verified by moving `.env` aside —
-  all 17 pass. Deleting a developer's `.env` is not this change's business; the fix is for the
-  harness to isolate the child's environment.
+- ~~**Two `agent/test/cli.test.ts` failures are pre-existing at `HEAD`**~~ — **now fixed**, see
+  below. They were pre-existing and not caused by this change, but "the fix is for the harness to
+  isolate the child's environment" turned out to be a two-line change, so leaving it undone was
+  not worth the standing red.
+
+## The `.env` leak (defect 16 — pre-existing, fixed here)
+
+Two `agent/test/cli.test.ts` cases assert the harness **refuses to start** when configuration is
+missing: exit `78` naming the absent variable (FR-010, SC-005) and exit `77` with the administrator
+ask (FR-022). Both spawn the built entrypoint with a deliberately incomplete environment.
+
+`agent/main.ts` opened with `process.loadEnvFile('.env')`. That call **does not overwrite** a
+variable that is already set — but it does **fill in** one that is absent, which is exactly what
+those two tests had arranged. The repository's own `.env` restored the withheld values and the
+process started cleanly, so both tests reported exit `0`.
+
+The failure mode is the interesting part: **green on every developer machine, red on a clean
+checkout.** The tests were not weak — they were correct, and were being answered by a file they
+never mentioned.
+
+**Fix**: `.env` now arrives from `node --env-file-if-exists=.env` on the `agent` npm script, and
+no source file loads it. `test:agent` does not pass the flag, so a spawn cannot inherit the file:
+isolation is structural rather than a convention to remember. Precedence is unchanged (real
+environment still beats the file) and `-if-exists` keeps a `.env`-less setup legitimate.
+
+Verified in both directions, because a pass alone would not distinguish the fix from the leak:
+`cli.test.ts` gives **17/17 with `.env` present and 17/17 with it moved aside** — the result no
+longer depends on the file — and `npm run agent` still signs in from `.env` and reports
+`spawned gma-mcp-server (9 tools)`. `agent/test/architecture.test.ts` guards both halves (no
+`loadEnvFile` in source; the flag on `agent`; **not** on `test:agent`).
+
+**A second, unrelated claim fell out of it.** The old placement was mandated as "the **first
+statement** in `agent/main.ts`, before any import that reads the environment at module scope",
+because `@ai-sdk/amazon-bedrock` reads `AWS_*` when evaluated. ESM imports are **hoisted**, so that
+statement ran *after* `./repl/loop.js` — and therefore Bedrock — had already been evaluated. The
+guarantee was never achieved, and no body statement could achieve it; the flag can, since it is
+applied before any module is evaluated. (Importing the provider against an empty environment does
+not in fact throw — the authentication failure arrives at the first model call.) `contracts/config.md`
+and `plan.md` are amended.
+
+Worth stating as a general rule, since this is the second time in this branch that a passing result
+turned out to be answering a different question than the one asked: **a test that asserts what
+happens when configuration is missing must not share a configuration-loading path with the thing it
+tests.**

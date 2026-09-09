@@ -140,6 +140,45 @@ describe('harness architecture invariants', () => {
     });
   });
 
+  describe('case: `.env` is loaded by the runtime, never in code (contracts/config.md)', () => {
+    it('calls process.loadEnvFile nowhere', () => {
+      const offenders = sourceFiles
+        .filter(({ source }) => source.includes('process.loadEnvFile('))
+        .map((f) => f.path);
+
+      // This is a REGRESSION guard, not a style rule. In-code loading defeated two of the
+      // fail-fast exit-code tests in `cli.test.ts`: those spawn the entrypoint with a
+      // deliberately incomplete environment, and `loadEnvFile` — which leaves set
+      // variables alone but fills in absent ones — restored exactly the values the test
+      // had withheld. Both went green on any machine with a working `.env`, which is
+      // every developer machine and no CI machine. `node --env-file-if-exists=.env` in the
+      // `agent` script cannot do that to a spawn that does not pass the flag.
+      //
+      // It also happens to be the only placement that achieves the ordering the old
+      // comment claimed: ESM imports are hoisted, so a "first statement" in `main.ts` ran
+      // after `@ai-sdk/amazon-bedrock` had already been evaluated.
+      expect(offenders).toEqual([]);
+    });
+
+    it('keeps the flag on the `agent` script, so the file still reaches a real run', () => {
+      const pkg = readFileSync(join(AGENT, '../package.json'), 'utf8');
+      const scripts = JSON.parse(pkg).scripts as Record<string, string>;
+
+      // The other half of the property. Removing in-code loading without this leaves
+      // `npm run agent` unable to see `.env` at all — the fix would then look like a
+      // regression to every engineer who runs it, and `--env-file` (no `-if-exists`)
+      // would break the equally legitimate case of configuring by real environment.
+      expect(scripts.agent).toContain('--env-file-if-exists=.env');
+    });
+
+    it('does NOT give the flag to test:agent, which asserts absent configuration', () => {
+      const pkg = readFileSync(join(AGENT, '../package.json'), 'utf8');
+      const scripts = JSON.parse(pkg).scripts as Record<string, string>;
+
+      expect(scripts['test:agent']).not.toContain('--env-file');
+    });
+  });
+
   describe('case: no AWS credential can reach the child (FR-011)', () => {
     it('never names an AWS credential variable in the spawn path', () => {
       const spawn = files.find(({ path }) => path === 'mcp/spawn.ts');

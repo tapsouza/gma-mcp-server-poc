@@ -41,8 +41,21 @@ interface RunResult {
 /**
  * Run the harness with the given input and environment.
  *
- * `HOME` is pointed at a path that does not exist, so no test can read or write the
- * engineer's real `~/.gma-agent/token.json`.
+ * **The environment is the whole point of this helper**: `env` is the child's COMPLETE
+ * environment, not an addition to this process's, because the exit-code cases below
+ * assert what happens when a required value is ABSENT. Two leaks have to be held shut:
+ *
+ *  - `HOME` is pointed at a path that does not exist, so no test can read or write the
+ *    engineer's real `~/.gma-agent/token.json`.
+ *  - `.env` is NOT loaded. It used to be, from inside `agent/main.ts`, and it defeated
+ *    two of the tests below: `loadEnvFile` leaves already-set variables alone but fills
+ *    in absent ones, so the repository's own `.env` restored precisely the values a test
+ *    had withheld and the process started cleanly instead of refusing to. `.env` now
+ *    arrives via `node --env-file-if-exists=.env` in the `agent` script, which this helper
+ *    does not pass — so the isolation is structural rather than a convention to remember.
+ *
+ * A test that ever needs the file's contents must opt in through `args`, and will then be
+ * asserting against whatever is on the machine — which is why none of them do.
  */
 function run(options: {
   input?: string;

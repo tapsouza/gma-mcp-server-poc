@@ -62,10 +62,34 @@ guess and the failure message must name this variable.
 
 ## `.env` loading
 
-`process.loadEnvFile('.env')` — a Node 22 builtin, no dependency — must be the **first statement**
-in `agent/main.ts`, before any import that reads the environment at module scope. The Bedrock
-provider reads `AWS_*` when it is evaluated; import it earlier and it sees an empty environment and
-fails with an authentication error that points nowhere near the real cause.
+**`node --env-file-if-exists=.env`, on the `agent` npm script. Never in code.** No dependency —
+a Node 22 flag. `agent/test/architecture.test.ts` asserts both halves: no source file calls
+`process.loadEnvFile`, and the `agent` script carries the flag.
+
+Amended 2026-09-09. This section previously required `process.loadEnvFile('.env')` as the **first
+statement** in `agent/main.ts`, on the reasoning that the Bedrock provider reads `AWS_*` when it is
+evaluated, so loading had to precede that import. Running it disproved both parts:
+
+1. **A body statement cannot precede an import.** ESM `import` declarations are hoisted, so the
+   "first statement" ran *after* `./repl/loop.js` — and therefore `@ai-sdk/amazon-bedrock` — had
+   been evaluated. The ordering was never achieved, and the placement could not achieve it. The
+   flag is applied before any module is evaluated, so it genuinely holds. (Separately, importing
+   `@ai-sdk/amazon-bedrock` against an empty environment does not throw at all; the failure the old
+   note described arrives at the first model call, not at import.)
+2. **In-code loading leaked `.env` into the suite.** `agent/test/cli.test.ts` spawns the entrypoint
+   with a deliberately incomplete environment to assert the fail-fast exit codes (FR-010, SC-005).
+   `loadEnvFile` does not overwrite variables that are already set, but it does fill in absent
+   ones — so the repository's own `.env` supplied exactly the values each test had withheld, and
+   the process started cleanly instead of refusing to. The two tests were green on every developer
+   machine and would have been red on a clean checkout.
+
+`-if-exists` rather than `--env-file` is load-bearing: configuring entirely by real environment,
+with no `.env` present, must stay legitimate. Precedence is unchanged either way — a variable
+already set in the real environment wins over the file.
+
+The general property worth keeping: **a test that asserts what happens when configuration is
+missing cannot share a configuration-loading path with the thing it tests.** Isolation that depends
+on remembering is isolation that lapses.
 
 ---
 
