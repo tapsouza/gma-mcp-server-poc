@@ -187,7 +187,9 @@ export const customerRiskConfigurationSchema = z
     eligibility: z
       .enum(['STANDARD', 'RESTRICTED', 'UNRESTRICTED'])
       .nullable()
-      .describe('Eligibility profile for this jurisdiction; null when unset.'),
+      .describe(
+        'Eligibility profile for this jurisdiction; null when unset. "RESTRICTED" IS a restriction on this customer in this jurisdiction and you MUST report it when asked whether they are restricted — it is jurisdiction-wide, so it applies to every sport, including any sport with no entry in `overrides`. Never answer a question about restrictions from `overrides` alone without reading this field.'
+      ),
     payoutLimitSingles: z.number().nullable().describe('Payout limit for single bets.'),
     payoutLimitMultiples: z.number().nullable().describe('Payout limit for multiple bets.'),
     maxWinningsCap: z.number().nullable().describe('Cap on winnings.'),
@@ -202,7 +204,7 @@ export const customerRiskConfigurationSchema = z
     overrides: z
       .array(hierarchyOverrideSchema)
       .describe(
-        'Risk settings applied to parts of the catalogue rather than to this whole configuration. An EMPTY list means no override exists for this jurisdiction — it does NOT mean the customer is unrestricted, because the jurisdiction-level settings above still apply.'
+        'Risk settings applied to parts of the catalogue rather than to this whole configuration. An EMPTY list means NO SPORT-SPECIFIC OVERRIDE EXISTS — it does NOT mean the customer is unrestricted, because the jurisdiction-level settings above still apply, `eligibility` in particular. So "no override for soccer" plus "eligibility: RESTRICTED" means the customer IS restricted on soccer, by the jurisdiction-wide setting. Answering "not restricted" from an empty list is a wrong answer about a real person\'s limits.'
       )
   })
   .describe(

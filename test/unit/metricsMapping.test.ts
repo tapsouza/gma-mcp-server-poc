@@ -372,6 +372,23 @@ describe('metrics mapping (FR-013, FR-014, R12)', () => {
       expect(projected.noDataNotice).toContain('find_customer_bets');
     });
 
+    it('PROHIBITS explaining why the figures are missing, rather than listing causes', () => {
+      // A live agent relayed the caveat faithfully and then resolved the ambiguity anyway:
+      // seeing 23,038 bets, it concluded "the metrics service simply has no data for them
+      // yet. This is likely a reporting lag." Reasonable-sounding, unfounded, and possibly
+      // wrong — an account with tens of thousands of bets and ZERO warehouse rows looks less
+      // like lag than like a warehouse never populated for this environment.
+      //
+      // Naming a candidate cause is what invited the pick, so the notice states the
+      // ambiguity and forbids resolving it rather than hoping the reader abstains.
+      const notice = toProjectedMetrics(upstream(allZero)).noDataNotice ?? '';
+
+      expect(notice).toMatch(/do NOT explain WHY/i);
+      expect(notice).toMatch(/not as a reporting lag/i);
+      // The reason the prohibition matters, stated so it is not read as mere style.
+      expect(notice).toMatch(/reads as a finding/i);
+    });
+
     it('is ABSENT on a normal answer, so nothing invites narrating its absence', () => {
       // Optional rather than nullable: a `noDataNotice: null` would be a field the model
       // reads and may mention. An absent key is silent.

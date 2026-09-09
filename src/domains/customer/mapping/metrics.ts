@@ -211,13 +211,30 @@ export interface ProjectedMetrics {
  *
  * Deliberately says what is NOT known rather than asserting a cause. Both readings are
  * live and this tool cannot tell them apart, so naming one would be a guess.
+ *
+ * ## Why it forbids the diagnosis outright
+ *
+ * The first wording said a reporting gap and genuine inactivity "look identical here" and
+ * left it there. An agent relayed that faithfully, then — seeing 23,038 bets from
+ * `find_customer_bets` — resolved the ambiguity anyway: *"the metrics service simply has no
+ * data for them yet. This is likely a reporting lag."*
+ *
+ * Reasonable-sounding, unfounded, and possibly wrong: an account with tens of thousands of
+ * bets and ZERO warehouse rows looks less like lag than like a warehouse never populated
+ * for this environment. Naming "lag" as a candidate is what invited the pick, so the notice
+ * now states the ambiguity and prohibits resolving it, rather than listing causes and
+ * hoping the reader abstains.
  */
 export const NO_DATA_NOTICE =
   'Upstream reported no metrics data for this customer. This is NOT evidence the customer ' +
   'has not bet: the metrics service zero-fills periods and buckets it has no data for, so a ' +
   'reporting gap and genuine inactivity look identical here. Betting metrics come from a ' +
   'separate reporting warehouse than bet records, and the two can disagree. Say that the ' +
-  'figures are unavailable, and use find_customer_bets to establish whether bets exist.';
+  'figures are unavailable, and use find_customer_bets to establish whether bets exist. Do ' +
+  'NOT explain WHY the figures are missing — not as a reporting lag, not as data yet to ' +
+  'arrive, not as a warehouse problem. Nothing here indicates the cause, and a plausible ' +
+  'explanation offered to a user reads as a finding. Report that the figures are unavailable ' +
+  'and stop there.';
 
 /**
  * True when the figures are all zero-or-absent — GMA's zero-fill signature.

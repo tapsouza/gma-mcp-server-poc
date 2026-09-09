@@ -7,6 +7,7 @@ import {
   GET_CUSTOMER_RISK_PROFILE_TEMPLATE,
   getCustomerRiskProfile
 } from '../../src/domains/customer/tools/getCustomerRiskProfile.js';
+import { customerRiskConfigurationSchema } from '../../src/domains/customer/schemas.js';
 import { GMA_BASE_URL, TEST_TOKEN, testConfig, useGmaServer } from '../helpers/gma.js';
 
 import crsThree from '../fixtures/gma/crsAccounts/200-three-jurisdictions.json' with { type: 'json' };
@@ -419,6 +420,82 @@ describe('get_customer_risk_profile (Story 1, P1)', () => {
       for (const upstreamName of ['contextId', 'hierarchyGroups', 'birDelay', 'gmltl', 'crs']) {
         expect(GET_CUSTOMER_RISK_PROFILE_DESCRIPTION).not.toContain(upstreamName);
       }
+    });
+  });
+
+  describe('case: an empty override list is never readable as "unrestricted"', () => {
+    /**
+     * A REGRESSION SUITE for a live defect, and one where the tool returned the right data
+     * and the agent still gave a wrong answer about a real person's limits.
+     *
+     * Asked "is this customer restricted on soccer?", the agent read the configurations and
+     * answered *"no catalogue-level restrictions apply — whether for soccer or any other
+     * sport"*. But all three of that customer's jurisdictions carry
+     * `eligibility: RESTRICTED`. An empty `overrides` array means no SPORT-SPECIFIC
+     * override; the jurisdiction-wide restriction still applies to every sport, soccer
+     * included.
+     *
+     * The design already guards this shape one level down — `ResolvedLeg.resolution` exists
+     * precisely so an empty `overridesInScope` cannot read as "unrestricted". The
+     * CONFIGURATION-level list had no equivalent, and `RESTRICTED` sitting immediately
+     * beside an empty list is exactly where the two get conflated.
+     */
+    it('says so in the overrides field description, where the model reads it', () => {
+      const described = customerRiskConfigurationSchema.shape.overrides.description ?? '';
+
+      expect(described).toMatch(/does NOT mean the customer is unrestricted/i);
+      // Names the interaction explicitly rather than leaving it to be inferred.
+      expect(described).toMatch(/eligibility/i);
+      expect(described).toMatch(/restricted/i);
+    });
+
+    it('makes eligibility state that RESTRICTED is a restriction, and is jurisdiction-wide', () => {
+      const described = customerRiskConfigurationSchema.shape.eligibility.description ?? '';
+
+      expect(described).toMatch(/IS a restriction/i);
+      expect(described).toMatch(/every sport/i);
+      // The ordering instruction: eligibility is not optional context to check afterwards.
+      expect(described).toMatch(/never answer a question about restrictions from/i);
+    });
+
+    it('has the tool description order the two fields, and rule out bet history', () => {
+      // The same run answered a restriction question from a page of bets — a page cannot
+      // support a claim about what a customer MAY do.
+      expect(GET_CUSTOMER_RISK_PROFILE_DESCRIPTION).toMatch(/eligibility.*FIRST/i);
+      expect(GET_CUSTOMER_RISK_PROFILE_DESCRIPTION).toMatch(/never answer a restriction question/i);
+      expect(GET_CUSTOMER_RISK_PROFILE_DESCRIPTION).toMatch(/CONFIGURATION only/i);
+    });
+
+    it('returns RESTRICTED alongside an EMPTY override list — the live combination', async () => {
+      // The data half of the guarantee: the wording above only helps if both fields reach
+      // the model together. This exact pairing — a jurisdiction-wide restriction with no
+      // sport-specific override — is what the live account had and what no existing fixture
+      // holds (`200-three-jurisdictions.json` pairs RESTRICTED with four overrides), so it
+      // is stated inline rather than by borrowing a fixture that would not exercise it.
+      server.use(
+        http.get(CRS_ACCOUNT, () =>
+          HttpResponse.json({
+            contexts: [
+              {
+                contextId: 'ctx-us-nj',
+                stakeFactor: 3,
+                gpEligibility: 'RESTRICTED',
+                hierarchyGroups: []
+              }
+            ]
+          })
+        )
+      );
+
+      const result = await getCustomerRiskProfile(client(), TEST_TOKEN, {
+        accountId: 'acct-test-0001'
+      });
+      const [configuration] = result.jurisdictionConfigurations;
+
+      expect(configuration!.eligibility).toBe('RESTRICTED');
+      // Empty and PRESENT. Never omitted: an absent field reads as "not applicable" rather
+      // than "none exist", and the model must see there is nothing sport-specific here.
+      expect(configuration!.overrides).toEqual([]);
     });
   });
 });

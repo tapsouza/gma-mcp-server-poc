@@ -51,7 +51,12 @@ export const GET_CUSTOMER_RISK_PROFILE_DESCRIPTION =
   'customer may be restricted in one state and unrestricted in another, so NEVER summarise, ' +
   'average, or collapse across jurisdictions — report each one separately. Each override lists ' +
   'the named catalogue path it applies to, so you do not need a second lookup. A null value ' +
-  'means unset, which is NOT the same as zero. If the result is incomplete, relay the caveat ' +
+  'means unset, which is NOT the same as zero. Asked whether a customer is restricted on some ' +
+  'sport, read `eligibility` FIRST and only then `overrides`: an empty override list means no ' +
+  'SPORT-SPECIFIC setting, never "unrestricted", and an eligibility of RESTRICTED applies to ' +
+  'every sport including that one. This tool describes CONFIGURATION only — that a customer ' +
+  'placed a bet on a sport is not evidence they are unrestricted on it, so never answer a ' +
+  'restriction question from bet history. If the result is incomplete, relay the caveat ' +
   'verbatim rather than presenting the configurations as the whole picture.';
 
 export interface GetCustomerRiskProfileArgs {

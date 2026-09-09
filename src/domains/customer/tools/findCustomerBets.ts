@@ -47,11 +47,30 @@ import type { Bet } from '../schemas.js';
  * to retry with scoping that cannot help (FR-011, FR-026).
  */
 
-/** The ordering caveat, stated UNCONDITIONALLY (FR-010). */
+/**
+ * The ordering caveat, stated UNCONDITIONALLY (FR-010).
+ *
+ * ## Why it also forbids reasoning from ABSENCE
+ *
+ * The first wording warned only about recency, and an agent relayed the true half —
+ * "most recent first" — while dropping the rest. It then used a 20-bet first page to
+ * answer a question about RESTRICTION: one soccer bet was present, so it concluded the
+ * customer "is not restricted on soccer".
+ *
+ * That is a different error from mis-describing recency, and a worse one. A page of bets
+ * cannot support a claim about what a customer MAY do: the bets that would disprove it are
+ * exactly the ones a first page omits, and a restriction added after these bets were placed
+ * is invisible here. Restrictions live in the configuration, which
+ * `get_customer_risk_profile` returns — so the caveat now names that tool rather than
+ * leaving the agent to reason from what it happens to see.
+ */
 export const ORDERING_CAVEAT =
   'These are the first bets of the upstream result set, most recent first. This may not be the ' +
   'globally most recent set of bets for this customer — relay that to the user rather than ' +
-  'describing these as their latest activity.';
+  'describing these as their latest activity. Draw NO conclusion from what is absent: this is ' +
+  'one page, so a sport or bet type missing here may simply be further down, and a bet being ' +
+  'present does NOT show the customer is permitted or unrestricted on it. Questions about ' +
+  'restrictions are answered by get_customer_risk_profile, never by bet history.';
 
 /**
  * The description the model sees, from contracts/tools.md section 3.

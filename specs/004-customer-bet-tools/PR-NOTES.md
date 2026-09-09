@@ -34,7 +34,7 @@ subclass and event type only (`SearchByNameResult` is a three-field record), and
 listing operation requires an event-type id you must already have. The tool's description says so
 outright, because an agent that does not know will send a name and get an error it cannot fix.
 
-957 tests across 30 files. Coverage: 98.48% lines / 89.15% branches overall, `src/core/**` at
+963 tests across 30 files. Coverage: 98.48% lines / 89.15% branches overall, `src/core/**` at
 98.29% lines — all above the constitutional thresholds, none of which was touched.
 
 ## The amendment-acceptance gate (SC-012)
@@ -69,9 +69,11 @@ None changes the design; each corrects a document against it.
 
 ## Defects found while implementing, not anticipated by the plan
 
-Twelve, and six share one shape: **an identifier stated in two vocabularies, compared in only one
-of them, failing silently.** **Seven** of the twelve were found only against **live** GMA and none
-of those was catchable by a fixture — see "Found only live" below.
+Fifteen. Six share one shape — **an identifier stated in two vocabularies, compared in only one of
+them, failing silently** — and three more share another: **the tool was right and the agent still
+said something false**, because the payload carried no prohibition against the inference. **Ten** of
+the fifteen were found only against **live** GMA and none of those was catchable by a fixture — see
+"Found only live" below.
 
 1. **`core/completeness.ts` conflated two failure axes.** `toInstanceErrors` mapped any
    top-level `errors[]` into an `InstanceError`, which is right for the v5 envelope and wrong
@@ -104,12 +106,12 @@ of those was catchable by a fixture — see "Found only live" below.
 
 ## Found only live, and why no fixture could have caught any of them
 
-All seven were discovered during live validation against dev GMA on 2026-09-09 (Validation 4, then
+All ten were discovered during live validation against dev GMA on 2026-09-09 (Validation 4, then
 Validation 3). They are recorded here because they expose a real limit of this branch's test
 strategy: `test/MUST-COVER.md` claims a fixture for every distinguishable outcome of every
 operation, and **none of these outcomes could have been produced by a fixture derived from the
-schema** — each response is exactly what its schema says a response looks like, and two of the
-seven are not upstream behaviours at all but things the tool failed to TELL the agent.
+schema** — each response is exactly what its schema says a response looks like, and **five of the
+ten are not upstream behaviours at all** but things the tool failed to TELL the agent.
 
 6. **QBS `pageNumber` is ZERO-based; we sent `1`.** That asks for the SECOND page. A single-bet
    lookup is one page long, so QBS answered HTTP 200 with `pageInfo.count: 0` and no `errors[]`
@@ -182,12 +184,19 @@ distinguish "our logic failed" from "our logic never ran", and because an error 
 argument the operation does not have.
 
 The mitigation available today is quickstart.md's Validations 3 and 4, and this run is the
-argument for treating both as **mandatory** before release rather than optional: **seven of this
-branch's twelve defects were reachable no other way**, and five of those seven would have shipped
-as confidently wrong answers about real customers rather than as visible failures — that a
-customer has never bet, that a bet's jurisdiction could not be determined, that no configuration
-governed a bet whose governing configuration was in the same response, that a bet's figures "came
-from defaults", and that a valid account identifier was invalid.
+argument for treating both as **mandatory** before release rather than optional: **ten of this
+branch's fifteen defects were reachable no other way**, and eight of those ten would have shipped
+as confidently wrong answers about real customers rather than as visible failures — that a customer
+has never bet, that a bet's jurisdiction could not be determined, that no configuration governed a
+bet whose governing configuration was in the same response, that a bet's figures "came from
+defaults", that a valid account identifier was invalid, that a RESTRICTED customer has no
+restrictions, that a page of bets proves what a customer may do, and that absent metrics are a
+reporting lag.
+
+**Validation 3 earns its place separately from Validation 4.** Four turned on upstream behaviour a
+fixture could not reproduce; the other six turned on what an agent concluded from a payload that
+was correct. Only a real model reading real descriptions surfaces the second kind, and five of the
+six were found in a single twenty-minute session.
 
 9. **A bet may state its jurisdiction as a context NAME, and matching compared only ids and
    codes.** A live bet reported `INTBS1` — which is `{ contextCode: 'NJ1', contextName: 'INTBS1' }`
@@ -251,6 +260,48 @@ from defaults", and that a valid account identifier was invalid.
     steers the diagnosis away from the truth and the agent relays that to a human as a claim about
     their input. The hint is now attached only when the call actually **sent** an instance list —
     which the client knows and `errors.ts` cannot — and defaults to omitted, the safe direction.
+
+13. **An empty `overrides` list read as "unrestricted", beside `eligibility: RESTRICTED`.** Asked
+    "is this customer restricted on soccer?", the agent answered *"no catalogue-level restrictions
+    apply — whether for soccer or any other sport"*. All three of that customer's jurisdictions
+    carried `eligibility: RESTRICTED`. An empty `overrides` array means no **sport-specific**
+    override; the jurisdiction-wide restriction still applies to every sport, soccer included.
+
+    The design already guards this shape one level down — `ResolvedLeg.resolution` exists
+    precisely so an empty `overridesInScope` cannot read as "unrestricted" — and the
+    configuration-level list had no equivalent. `RESTRICTED` sitting immediately beside an empty
+    list is exactly where the two get conflated. The field description now names the interaction,
+    `eligibility` states that `RESTRICTED` **is** a restriction and is jurisdiction-wide, and the
+    tool description orders the two reads.
+
+14. **A restriction question was answered from BET HISTORY.** In the same run the agent reversed
+    itself, concluding from one soccer bet on a 20-bet first page that the customer "is not
+    restricted on soccer" — and it dropped the ordering caveat's second half while doing so,
+    relaying "most recent first" but not "may not be the globally most recent".
+
+    A page of bets cannot support a claim about what a customer MAY do: the bets that would
+    disprove it are exactly the ones a first page omits, and a restriction added after these bets
+    were placed is invisible. The caveat warned only about recency, which left the inference
+    unaddressed; it now forbids reasoning from absence, states that a bet's presence is not
+    permission, and names `get_customer_risk_profile` as the tool that answers the question.
+
+15. **The all-zero metrics notice was explained away.** The agent relayed the caveat faithfully
+    and then resolved the ambiguity anyway: seeing 23,038 bets, it concluded *"the metrics service
+    simply has no data for them yet. This is likely a reporting lag."* Reasonable-sounding,
+    unfounded, and possibly wrong — an account with tens of thousands of bets and **zero**
+    warehouse rows looks less like lag than like a warehouse never populated for this environment.
+
+    The notice had said a reporting gap and genuine inactivity "look identical here" and stopped;
+    naming candidate causes is what invited the pick. It now prohibits explaining **why** the
+    figures are missing, and says why that matters: a plausible explanation offered to a user
+    reads as a finding.
+
+**Defects 13 to 15 are a category the rest of this list does not contain.** In each, the tool
+returned correct data with a correct caveat and the **agent still produced a false statement**. No
+fixture can catch these, because there is nothing wrong with the payload — what was missing was a
+prohibition in the text the model reads. quickstart.md's Validation 3 is the only mechanism that
+surfaces them, and its own note is exactly right: *a failure here is a tool-description defect, not
+an agent defect.* All three fixes are description-only; no logic changed.
 
 ## Additions to `core`, both opt-in and additive
 

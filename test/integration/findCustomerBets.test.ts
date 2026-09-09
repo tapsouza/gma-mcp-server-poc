@@ -553,6 +553,30 @@ describe('find_customer_bets (Story 2, P2)', () => {
       expect(result.orderingCaveat).not.toMatch(/unknown/i);
       expect(result.orderingCaveat).toMatch(/first bets of the upstream result set/i);
     });
+
+    it('forbids reasoning from what is ABSENT, not just from the ordering', async () => {
+      /**
+       * A REGRESSION SUITE for a live defect. The caveat warned only about recency, and an
+       * agent relayed the true half — "most recent first" — then used a 20-bet first page to
+       * answer a question about RESTRICTION: one soccer bet was on the page, so it concluded
+       * the customer "is not restricted on soccer".
+       *
+       * A page of bets cannot support a claim about what a customer MAY do. The bets that
+       * would disprove it are exactly the ones a first page omits, and a restriction added
+       * after these bets were placed is invisible here. So the caveat now rules the
+       * inference out and names the tool that does answer it.
+       */
+      server.use(http.post(QBS, () => HttpResponse.json(qbsSingle)));
+
+      const result = await findCustomerBets(client(), MAX_BETS, TEST_TOKEN, {
+        accountId: 'acct-test-0001'
+      });
+
+      expect(result.orderingCaveat).toMatch(/no conclusion from what is absent/i);
+      // Presence is not permission — the exact inference the agent made.
+      expect(result.orderingCaveat).toMatch(/does NOT show the customer is permitted/i);
+      expect(result.orderingCaveat).toMatch(/get_customer_risk_profile/);
+    });
   });
 
   describe('case: several matches are all returned, none chosen (FR-014-equivalent)', () => {
