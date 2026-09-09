@@ -483,8 +483,17 @@ describe('toEventLookupId — the GBP long URN, never an invented namespace', ()
    * (`Rule4EnrichmentService:121`, `GbpId.java:17`).
    *
    * The property that matters is the NEGATIVE one: a value with no `source:` segment must
-   * yield `null`, not a guess. The previous implementation hardcoded `gpd` and produced a
-   * live HTTP 400 against an OpenBet bet — an id nobody ever issued.
+   * yield `null`, not a guess. `GbpId.fromSourceId` throws on such a value, and
+   * `Rule4EnrichmentService:114` skips the leg rather than substituting anything — so
+   * returning a URN here would send upstream an id GMA itself would never construct.
+   *
+   * **Live observation, ten legs across both bet stacks: gbpIds ARE namespaced**
+   * (`gpd:14643022`, `gpd:40646467`, …). So the null cases below are a guard against a
+   * shape not yet seen live, not a description of the common path. Note the UI's own
+   * fixtures state bare gbpIds (`gbpbmui-tool/src/utils/mockedData.ts` — `'162079'`); if
+   * a bare value ever does arrive from GMA, the honest outcome is the null this returns,
+   * NOT a prefix guessed here. The source cannot be recovered from a bare number, and
+   * `gpd` being the only namespace seen so far is not evidence it is the only one.
    */
   describe('case: a namespaced gbpId becomes a long URN, with the source READ from the value', () => {
     it.each([
@@ -504,7 +513,7 @@ describe('toEventLookupId — the GBP long URN, never an invented namespace', ()
 
   describe('case: an id carrying NO namespace yields null rather than a fabrication', () => {
     it.each([
-      ['a bare OpenBet rampId', '14643022'],
+      ['a bare numeric id', '14643022'],
       ['a short numeric id', '9201'],
       ['an empty source', ':9201'],
       ['an empty source id', 'gpd:'],
@@ -514,10 +523,13 @@ describe('toEventLookupId — the GBP long URN, never an invented namespace', ()
       expect(toEventLookupId(input)).toBeNull();
     });
 
-    it('is what makes an OpenBet leg honestly unresolvable rather than wrongly looked up', () => {
+    it('yields an honestly-unresolvable leg rather than a wrongly-looked-up one', () => {
       // GMA skips such a leg too (`Rule4EnrichmentService:114`). A null here becomes
       // `notResolvedIdentifierUnusable`, which is an honest "we do not know this leg's
       // position" — categorically better than a confident lookup of an invented id.
+      //
+      // NOT the OpenBet case: OpenBet legs DO carry namespaced gbpIds and are looked up.
+      // Their 400 is upstream's answer, covered in `integration/getBetRiskContext.test.ts`.
       expect(toEventLookupId('14643022')).toBeNull();
     });
   });

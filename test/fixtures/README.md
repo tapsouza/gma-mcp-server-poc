@@ -134,6 +134,7 @@ Reading that schema confirmed three facts this feature depends on:
 | `200-single-bet.json`              | one fully-populated single-leg bet                                                                                                                                                                                                                                                                                                          |
 | `200-multi-leg-bet.json`           | three legs where **legs 1 and 3 share one event**, so distinct-event dedupe is provable (SC-013)                                                                                                                                                                                                                                            |
 | `200-multiple-matches.json`        | two bets for one receipt identifier → all candidates, zero further resolution work (FR-022)                                                                                                                                                                                                                                                 |
+| `200-openbet-bet.json`             | an **OpenBet-stack** bet (`isOb: true`, numeric `betId`) whose leg carries a namespaced `gbpId` exactly as the live one does. Paired with `events/400-bad-request.json`: the hop IS attempted, upstream refuses, and the leg reports `notResolvedUpstreamFailure`. The observed shape, replacing an earlier invented one — see below        |
 | `200-no-match.json`                | zero matches → `kind: 'none'`, which is neither an error nor a caveat (FR-012)                                                                                                                                                                                                                                                              |
 | `200-over-limit.json`              | 25 bets with `pageInfo.count: 137`, above the default cap of 20 → `limitReached: true`, never silent truncation (FR-010). Placement dates descend, so the post-retrieval sort is observable                                                                                                                                                 |
 | `401-unauthorized.json`            | identity invalid or expired                                                                                                                                                                                                                                                                                                                 |
@@ -143,6 +144,14 @@ Reading that schema confirmed three facts this feature depends on:
 There is deliberately **no `206`**: this surface signals partial failure in a `200` **body**, not
 in a status code, which is precisely what makes it dangerous and why the success-carrying-errors
 fixture is mandatory instead.
+
+**`200-openbet-bet.json` is a worked example of how a fixture goes wrong.** It was first authored
+with legs carrying only a bare `rampId`, on the theory that OpenBet legs lack a `gbpId` — a shape
+nobody had observed. It was then contradicted by live data on both counts: the leg carries
+`gpd:14643022`, and the 400 that theory was built to explain also reaches the GMA UI, so it is
+upstream's answer and not a symptom of our request. The rule the episode argues for: **a fixture
+must state a shape someone has seen, and a fixture invented to explain a symptom will agree with
+the code that invented it.** Both the fixture and its suite now assert the observed behaviour.
 
 ### `crsContexts/` — `GET /crs/contexts`
 
@@ -179,7 +188,7 @@ on both sides would have let a join that cannot work pass.
 | `200-success.json`      | an `Event` with all three required id/name pairs → the leg resolves and its overrides are in scope                                                                                                |
 | `200-second-event.json` | a **different** event, so a multi-leg bet's distinct-event dedupe is observable as two calls rather than three (SC-013)                                                                           |
 | `206-partial.json`      | **the one that matters most**: one instance answered, one failed → the WHOLE composite becomes `PARTIAL`, and the failure is a `failedInstance` (retry may help), never an `unavailableComponent` |
-| `400-bad-request.json`  | a malformed identifier → `argument`                                                                                                                                                               |
+| `400-bad-request.json`  | a well-formed URN the catalogue cannot serve — the **live OpenBet-event answer**, which the GMA UI receives too → `argument`, NOT retryable, leg `notResolvedUpstreamFailure`                     |
 | `401-unauthorized.json` | identity invalid or expired → human re-authenticates                                                                                                                                              |
 | `404-not-found.json`    | no such event → the leg is a NAMED unresolved leg, never "no overrides apply"                                                                                                                     |
 | `500-server-error.json` | nothing usable → the leg is unresolved and `legCataloguePositions` is reported missing                                                                                                            |

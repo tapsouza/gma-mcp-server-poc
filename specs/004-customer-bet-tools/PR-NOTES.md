@@ -105,14 +105,20 @@ produced by a fixture at all.**
    *Why no fixture could catch it:* `msw` ignores `pageNumber` entirely and returns whatever the
    handler holds. Every offline test passed with either value.
 
-7. **The event URN's `source` segment is DATA, not a constant.** See the R9 section below for the
-   full account. Short version: `gpd` was hardcoded, the real source comes from the `gbpId`
-   value, and inventing it produced a live HTTP **400** for every OpenBet-stack bet.
+7. **The event lookup read the wrong `entityIds` member.** GMA's own join uses **`gbpId`**
+   (`Rule4EnrichmentService:121` → `gbpIdOf` at `:128`), not `rampId`, and the `source` segment
+   is DATA rather than the hardcoded `gpd`. See the R9 section below.
 
    *Why no fixture could catch it:* every existing fixture was authored from the same wrong
-   assumption, so the fixtures and the code agreed. `200-openbet-bet.json` now encodes the real
-   OpenBet shape — legs carrying only a bare `rampId` — and the regression suite asserts that
-   **no event call is made at all** for such a leg.
+   assumption, so the fixtures and the code agreed.
+
+   **A correction to how this was first reported.** The `gpd` hardcoding was initially blamed
+   for a live HTTP **400** on an OpenBet bet. It was not the cause: for that bet the assembled
+   URN is byte-identical before and after the fix (`urn:sbk:pc:e:gpd:14643022`), because its
+   gbpId's source IS `gpd`. The 400 is upstream's — **the GMA UI receives the same 400 for the
+   same event**, so the event is absent from the catalogue PCSS serves and no request shape we
+   could send would resolve it. The `gbpId` fix stands on its own merits (it removes an invented
+   constant and matches GMA's join); it simply did not fix that symptom.
 
 **The strategy gap this leaves open.** Fixtures verify that code and fixture agree; they cannot
 verify that either matches upstream. Every one of the identifier defects on this branch was of
@@ -165,23 +171,36 @@ GbpId.fromSourceId(gbpIdOf(leg.getEvent()), "e").toLongUrn()
 requires `source:sourceId`, assembling `urn:sbk:pc:{level}:{source}:{sourceId}`. When the
 gbpId is blank, `:114` **skips the leg** rather than substituting anything.
 
-**The two bet stacks are why this mattered.** Steel-thread bets (internal, ids shaped
-`urn:sbk:bet:…`) carry a namespaced `gbpId`; **OpenBet** bets (numeric ids, `isOb: true`) may
-carry only a bare `rampId`. Against a real OpenBet bet, the invented `gpd` namespace produced
-a live **HTTP 400**, and the composite went `PARTIAL` for every bet on that stack.
+**The two bet stacks do NOT differ in identifier shape**, which is where the first diagnosis
+went wrong. Legs on both stacks carry a namespaced `gbpId` — verified live across ten legs:
+`gpd:14643022` on an OpenBet bet, `gpd:40646467` and eight more on a steel-thread ninefold. So
+`isOb` does not predict resolvability, and it is deliberately **not** used to skip the event
+hop: the UI's own fixtures hold `isOb: true` bets whose events carry good gbpIds
+(`gbpbmui-tool/src/utils/mockedData.ts` — `'162079'`), and skipping on the flag would deny a
+lookup to legs that can resolve, trading an honest failure for a silent one.
 
 **How a live test appeared to confirm the wrong answer.** A steel-thread bet resolved both
 legs with `resolvedVia: rampId`, and that was read as confirmation. It was not: for that bet
 `rampId` and the gbpId's `sourceId` were the same number *and* the source happened to be
 `gpd`, so the two candidate mechanisms were indistinguishable. **A passing result does not
-confirm a mechanism unless the alternative would have failed.** Only a bet where the forms
-differ could tell them apart — which is what the OpenBet bet is, and what
-`200-openbet-bet.json` now pins.
+confirm a mechanism unless the alternative would have failed.**
+
+The converse bit too, and is worth recording. The OpenBet 400 was read as convicting the
+request, and two fixes were committed on that reading before anyone checked whether the *UI*
+could fetch the same event. It cannot — same 400. **A failing result does not convict the
+request until the same request is shown to succeed elsewhere.**
 
 `pickIdentifier` now prefers `gbpId`; `rampId` remains a fallback for display only, and
 yields `null` from `toEventLookupId` because no URN can be built from it without inventing a
-namespace. Such a leg is reported `notResolvedIdentifierUnusable` — distinct from
+namespace. That null is a guard against an unobserved shape, not the live path. A leg that hit
+it would be reported `notResolvedIdentifierUnusable` — distinct from
 `notResolvedUpstreamFailure`, since no retry can supply a namespace the bet never carried.
+
+`200-openbet-bet.json` now states the **observed** shape (a namespaced `gbpId` alongside the
+bare `rampId`) rather than the shape originally assumed, and its suite asserts the live
+outcome: the lookup IS attempted, the URN is well formed, upstream answers 400, and the leg is
+reported `notResolvedUpstreamFailure` with `resolvedVia: gbpId` — the field that tells the next
+reader the request was right and stops a third round of id-form "fixes".
 
 R9 also gained a **second, narrower** unverified element while implementing: defect 4's
 trailing-segment comparison is evidenced for events only, and the three non-event levels are

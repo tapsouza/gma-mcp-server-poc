@@ -24,6 +24,7 @@ import contexts500 from '../fixtures/gma/crsContexts/500-server-error.json' with
 import event1 from '../fixtures/gma/events/200-success.json' with { type: 'json' };
 import event2 from '../fixtures/gma/events/200-second-event.json' with { type: 'json' };
 import event206 from '../fixtures/gma/events/206-partial.json' with { type: 'json' };
+import event400 from '../fixtures/gma/events/400-bad-request.json' with { type: 'json' };
 import event500 from '../fixtures/gma/events/500-server-error.json' with { type: 'json' };
 import qbsSingle from '../fixtures/gma/qbsSearchBets/200-single-bet.json' with { type: 'json' };
 import qbsMultiLeg from '../fixtures/gma/qbsSearchBets/200-multi-leg-bet.json' with { type: 'json' };
@@ -237,64 +238,87 @@ describe('get_bet_risk_context (Story 3, P3)', () => {
     });
   });
 
-  describe('case: an OpenBet leg carries no namespaced id, and NO lookup is attempted', () => {
+  describe('case: an OpenBet event is not in the GBP catalogue, and the 400 stays retryable-false', () => {
     /**
-     * A REGRESSION SUITE for a live defect. There are two bet stacks: steel-thread bets
-     * (processed internally, ids shaped `urn:sbk:bet:…`) whose legs carry a namespaced
-     * `gbpId`, and **OpenBet** bets (numeric ids, `isOb: true`) whose legs may carry only a
-     * bare `rampId`.
+     * A REGRESSION SUITE for a live finding, and the fixture states what was OBSERVED
+     * rather than what was assumed. There are two bet stacks: steel-thread bets
+     * (processed internally, ids shaped `urn:sbk:bet:…`) and **OpenBet** bets (numeric
+     * ids, `isOb: true`).
      *
-     * The code hardcoded `urn:sbk:pc:e:gpd:` and prefixed the `rampId`, inventing a `source`
-     * namespace. Against a real OpenBet bet GMA answered **HTTP 400** — and the whole
-     * composite went PARTIAL for every bet on that stack.
+     * Legs on BOTH stacks carry a namespaced `gbpId` — verified live across ten legs
+     * (`gpd:14643022` on an OpenBet bet, `gpd:40646467` and eight more on a steel-thread
+     * ninefold). So the URN builds fine here; what fails is upstream. `GET /v5/events/{id}`
+     * answers **HTTP 400** for an OpenBet event, and the GMA UI gets the same 400 for the
+     * same event — so the event is simply absent from the GBP catalogue PCSS serves, and
+     * this is not a defect in the request we send.
      *
-     * GMA's own join does not do this: `Rule4EnrichmentService:121` builds the URN from
-     * `entityIds.gbpId` via `GbpId.fromSourceId`, which requires `source:sourceId`, and
-     * `:114` SKIPS a leg whose gbpId is blank rather than substituting anything.
+     * ## Why `isOb` is NOT used to skip the hop
+     *
+     * It would look like an optimisation: the stack is known, so why ask? Because `isOb`
+     * does not predict resolvability. The bet-management UI's own fixtures show
+     * `isOb: true` bets whose events carry perfectly good gbpIds
+     * (`gbpbmui-tool/src/utils/mockedData.ts` — `PARIS ST-G V DORTMUND`, `gbpId: '162079'`).
+     * Skipping on `isOb` would deny a lookup to every OpenBet leg that CAN resolve, trading
+     * one honest failure for a silent one. The hop is attempted and the answer is reported.
      */
     function openbetHops(): void {
       server.use(
         http.post(QBS, () => HttpResponse.json(qbsOpenbet)),
         http.get(CRS_ACCOUNT, () => HttpResponse.json(crsAccount)),
-        http.get(CRS_CONTEXTS, () => HttpResponse.json(crsContexts))
-        // NO event handler on purpose: `onUnhandledRequest: 'error'` means any event call
-        // fails this suite, which is exactly the property under test.
+        http.get(CRS_CONTEXTS, () => HttpResponse.json(crsContexts)),
+        // The live answer for an OpenBet event: a 400, which the client maps to
+        // `kind: 'argument'`.
+        http.get(EVENT, () => HttpResponse.json(event400, { status: 400 }))
       );
     }
 
-    it('makes NO event call at all, rather than one with a fabricated namespace', async () => {
-      openbetHops();
+    it('DOES attempt the lookup, sending the URN built from the leg gbpId', async () => {
+      // The negative of the `isOb` shortcut: a recorded request proves the hop happened.
+      // Asserting only on the result would pass for an implementation that skipped it.
+      const recorder = requestRecorder();
+      server.use(
+        http.post(QBS, () => HttpResponse.json(qbsOpenbet)),
+        http.get(CRS_ACCOUNT, () => HttpResponse.json(crsAccount)),
+        http.get(CRS_CONTEXTS, () => HttpResponse.json(crsContexts)),
+        http.get(EVENT, async ({ request }) => {
+          await recorder.record(request);
+          return HttpResponse.json(event400, { status: 400 });
+        })
+      );
 
       const result = await getBetRiskContext(deps(), TEST_TOKEN, { betId: '575487504' });
 
+      expect(recorder.seen).toHaveLength(1);
+      expect(recorder.seen[0]!.url).toContain(encodeURIComponent('urn:sbk:pc:e:gpd:14643022'));
       expect(result.bet!.betId).toBe('575487504');
       expect(result.resolvedLegs).toHaveLength(1);
     });
 
-    it('reports the leg as notResolvedIdentifierUnusable, NOT as an upstream failure', async () => {
-      // The distinction Principle IV requires: an upstream failure invites a retry, and no
-      // retry can supply a namespace the bet never carried. Folding them would hide a
-      // systematic identifier problem in a bucket that reads as transient.
+    it('reports the leg as notResolvedUpstreamFailure — we asked and were refused', async () => {
+      // The honest bucket for this outcome. `notResolvedIdentifierUnusable` would be
+      // wrong here and would misdirect: it says the BET carried nothing usable, when the
+      // bet carried a well-formed namespaced id and the CATALOGUE lacks the event.
       openbetHops();
 
       const result = await getBetRiskContext(deps(), TEST_TOKEN, { betId: '575487504' });
       const [leg] = result.resolvedLegs!;
 
-      expect(leg!.resolution).toBe('notResolvedIdentifierUnusable');
-      expect(leg!.resolution).not.toBe('notResolvedUpstreamFailure');
+      expect(leg!.resolution).toBe('notResolvedUpstreamFailure');
+      expect(leg!.resolution).not.toBe('notResolvedIdentifierUnusable');
       expect(leg!.cataloguePath).toBeNull();
       // Empty means NOTHING IS KNOWN here, and `resolution` is what says so.
       expect(leg!.overridesInScope).toEqual([]);
     });
 
-    it('still reports WHICH member the leg carried, so the cause is legible', async () => {
-      // `rampId` on an unresolved leg is the diagnosis: this leg had no namespaced
-      // identifier, so no lookup was possible. A null would hide why.
+    it('reports resolvedVia as gbpId, so the id form is not blamed for the 400', async () => {
+      // Load-bearing for diagnosis. `gbpId` here says the canonical path was taken and
+      // the request was well formed — which is what stops the next reader "fixing" the
+      // id form, as happened twice before this suite existed.
       openbetHops();
 
       const result = await getBetRiskContext(deps(), TEST_TOKEN, { betId: '575487504' });
 
-      expect(result.resolvedLegs![0]!.resolvedVia).toBe('rampId');
+      expect(result.resolvedLegs![0]!.resolvedVia).toBe('gbpId');
     });
 
     it('names the missing section and stays answerable', async () => {

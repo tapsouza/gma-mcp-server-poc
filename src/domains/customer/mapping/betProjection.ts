@@ -26,23 +26,33 @@ import type { AppliedRiskFigures, Bet, BetLeg, NamedEntity, WagerAmounts } from 
  * as `urn:sbk:pc:{level}:{source}:{sourceId}`.
  *
  * So `gpd` is **not a constant** — it is the `source` segment, and it comes from the data.
- * Hardcoding it invented a namespace for every bet whose source differs, which is what
- * produced a live `400` on an OpenBet bet.
+ * Hardcoding it invents a namespace for every bet whose source differs. Every gbpId seen
+ * live so far happens to carry `gpd`, which is exactly why the hardcoding survived: it is
+ * indistinguishable from correct until a bet arrives with another source, and then it
+ * fabricates an id nobody issued rather than failing.
  *
- * ## Two bet stacks, and why the wrong one still "worked"
+ * ## Two bet stacks, and why `isOb` is NOT consulted here
  *
  * There are two: **steel-thread** bets (processed internally, ids shaped `urn:sbk:bet:…`)
  * and **OpenBet** bets (numeric ids). QBS distinguishes them with `isOb` — *"if bet is
  * from Openbet or not"*.
  *
- * The original assumption appeared to hold on a steel-thread bet because `rampId` and the
- * gbpId's `sourceId` were the same number AND its source happened to be `gpd`. The leg
- * resolved, `resolvedVia` reported `rampId`, and that read as confirmation. It was not:
- * the two candidate mechanisms were never distinguished by that bet. Only a bet where the
- * forms differ could tell them apart, and an OpenBet bet is exactly that.
+ * Legs on **both** stacks carry a namespaced `gbpId`. Verified live across ten legs:
+ * `gpd:14643022` on an OpenBet bet, and `gpd:40646467` plus eight more on a steel-thread
+ * ninefold. The stack therefore does NOT determine the identifier shape, and `isOb` is
+ * deliberately not used to decide whether a lookup is worth attempting: the UI's own
+ * fixtures contain `isOb: true` bets whose events carry good gbpIds
+ * (`gbpbmui-tool/src/utils/mockedData.ts` — `PARIS ST-G V DORTMUND`, `gbpId: '162079'`),
+ * so skipping on `isOb` would deny a lookup to legs that can resolve.
+ *
+ * What IS true of the OpenBet event observed live: `GET /v5/events/{id}` answers **400**
+ * for it, and the GMA UI gets the same 400 for the same event — so that event is absent
+ * from the catalogue PCSS serves. That is upstream's answer to a well-formed request, and
+ * it surfaces as `notResolvedUpstreamFailure`, not as an identifier problem.
  *
  * The lesson recorded for the next reader: a passing result does not confirm a mechanism
- * unless the alternative would have failed.
+ * unless the alternative would have failed — and its converse, that a failing result does
+ * not convict the request until you have checked whether the same request fails elsewhere.
  */
 
 /** Which `entityIds` member supplied a leg's identifier. A field LEVEL, never a value. */
@@ -67,6 +77,11 @@ const EVENT_LEVEL = 'e';
  * is blank rather than substituting anything. A `null` here surfaces as
  * `notResolvedIdentifierUnusable` — an honest "this leg's position is unknown", which is
  * categorically better than a confident lookup of an id nobody issued.
+ *
+ * That null path is a GUARD, not the common path: every gbpId observed live is namespaced.
+ * The UI's fixtures do state bare ones, so if such a value ever arrives the honest answer
+ * is this null and the fix belongs upstream or in a verified source lookup — not in a
+ * prefix guessed here.
  *
  * Idempotent for a value already in long-URN form, so an upstream that starts sending
  * assembled URNs does not break the hop.

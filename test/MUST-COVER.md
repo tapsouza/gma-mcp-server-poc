@@ -206,11 +206,20 @@ discarded it — which is a different program from the one FR-022 and SC-013 spe
 
 **Two defects this story caught, both the same shape: an identifier stated in two forms.**
 
-1. **The event lookup id.** R9's only evidence is `rampId` **prefixed** with
-   `urn:sbk:pc:e:gpd:` (`gbpbmui-tool/src/utils/linkManager.ts:51` reads it, `:88` prefixes it).
-   The composite sent the bare `rampId`, which 404s every leg — and because that surfaces as
-   `notResolvedIdentifierUnusable`, the symptom is **indistinguishable from R9 being wrong**. Fixed
-   by `toEventLookupId`, covered by an assertion on the observed URL.
+1. **The event lookup id.** The composite sent the bare `rampId`, which 404s every leg — and
+   because that surfaces as `notResolvedIdentifierUnusable`, the symptom is **indistinguishable
+   from R9 being wrong**. The bridge is `entityIds.gbpId` (GMA's own join, `Rule4EnrichmentService:121`
+   → `:128`), whose value carries its own `source` segment; the `gpd` in
+   `urn:sbk:pc:e:gpd:{id}` is DATA, not a constant. Fixed by `toEventLookupId`, covered by an
+   assertion on the observed URL.
+
+   Two further outcomes belong to this row, both live-only. An **OpenBet** event answers HTTP
+   **400** even for a well-formed URN — the GMA UI gets the same 400, so the event is absent
+   from the catalogue rather than mis-addressed by us; pinned by
+   `qbsSearchBets/200-openbet-bet.json` + `events/400-bad-request.json`, asserting the hop IS
+   attempted and the leg reports `notResolvedUpstreamFailure`. And `isOb` is **not** used to
+   skip that hop, since it does not predict resolvability.
+
 2. **The override join.** CRS states override ids bare (`'3'`, `'3307'`) while
    `GET /v5/events/{id}` returns URNs. Compared verbatim they match nothing, so **every** leg
    reported an empty `overridesInScope` — the shape that reads as "no restriction covers this leg",

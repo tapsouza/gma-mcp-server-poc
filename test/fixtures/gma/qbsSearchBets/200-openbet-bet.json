@@ -48,31 +48,36 @@
               "sport": {
                 "name": "Football",
                 "entityIds": {
-                  "rampId": "9001"
+                  "rampId": "9001",
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
-                  "rampId": "9101"
+                  "rampId": "9101",
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Tampa Bay Lightning @ Florida Panthers",
                 "entityIds": {
-                  "rampId": "14643022"
+                  "rampId": "14643022",
+                  "gbpId": "gpd:14643022"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
-                  "rampId": "9301"
+                  "rampId": "9301",
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
-                  "rampId": "9401"
+                  "rampId": "9401",
+                  "gbpId": "gpd:9401"
                 }
               }
             }
