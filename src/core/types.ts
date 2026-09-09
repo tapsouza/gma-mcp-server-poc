@@ -50,14 +50,48 @@ export interface InstanceError {
 }
 
 /**
+ * A named section of a composite answer that could not be retrieved.
+ *
+ * A CLOSED set, deliberately: the agent-facing vocabulary stays stable and the
+ * schema is `enum`-able, so a tool cannot invent a section name the model has never
+ * seen. Every member has an emitter — an enum member no tool populates is a missing
+ * hop, not a spare label (data-model.md section 1).
+ */
+export type ComponentName =
+  /** The customer's per-jurisdiction risk settings could not be retrieved. */
+  | 'customerRiskConfiguration'
+  /** The bet itself could not be retrieved. */
+  | 'betDetail'
+  /**
+   * One or more legs' catalogue positions are unresolved. WHICH legs is stated in
+   * the result body, per leg — not here, because a section name is not a list.
+   */
+  | 'legCataloguePositions'
+  /** The platform jurisdiction context list could not be retrieved. */
+  | 'jurisdictionContexts';
+
+/**
  * The mandatory verdict attached to every tool result as a top-level field —
  * present even on full success, and never prose-only (FR-005, FR-006).
  *
+ * TWO INDEPENDENT FAILURE AXES, which MUST NEVER be merged (constitution Principle
+ * II). They answer different questions and demand different agent behaviour:
+ *
+ *   | Axis                    | Question                        | Correct agent action     |
+ *   |-------------------------|---------------------------------|--------------------------|
+ *   | `failedInstances`       | Is this list missing ROWS?      | Retry with narrower scope |
+ *   | `unavailableComponents` | Is this record missing a SECTION? | State what is absent     |
+ *
+ * Merging them is not a cosmetic loss. Reporting a missing section as a failed
+ * instance tells the agent to retry with different scoping — a correction that
+ * cannot work, so the agent retries indefinitely.
+ *
  * Invariant, asserted in `test/unit/completeness.test.ts`:
- *   `complete === true` ⟺ `outcome === 'COMPLETE'` ⟺ `failedInstances.length === 0`
+ *   `complete === true` ⟺ `outcome === 'COMPLETE'`, and either axis being non-empty
+ *   implies NOT `complete`.
  */
 export interface Completeness {
-  /** `true` only when every hop returned HTTP 200. */
+  /** `true` only when every hop returned HTTP 200 AND both failure axes are empty. */
   readonly complete: boolean;
   /** Worst outcome across all hops, by `OUTCOME_SEVERITY`. */
   readonly outcome: Outcome;
@@ -65,6 +99,11 @@ export interface Completeness {
   readonly successfulInstances: readonly string[];
   /** Union of `failedConfigSources` across hops, deduplicated. */
   readonly failedInstances: readonly string[];
+  /**
+   * Named sections of a composite answer that could not be retrieved, even though
+   * every source consulted answered. The second axis; see the table above.
+   */
+  readonly unavailableComponents: readonly string[];
   /** Union of per-instance errors across hops, deduplicated. */
   readonly errors: readonly InstanceError[];
   /** Human-readable sentence for the agent to relay; `null` iff `complete`. */
@@ -87,11 +126,17 @@ export interface GmaResult<T> {
 export type ErrorKind =
   /** HTTP 401 — identity absent, expired, or from the wrong issuer. Human re-authenticates. */
   | 'auth'
+  /**
+   * HTTP 403 — identity valid, permission absent. NEVER conflated with `auth`: the
+   * human action differs (request access, not sign in again), and it is never
+   * reported as `upstream`, which would invite a retry that cannot succeed.
+   */
+  | 'forbidden'
   /** HTTP 400, or local validation. The agent corrects its own arguments. */
   | 'argument'
   /** HTTP 404 — the identifier does not exist. */
   | 'notFound'
-  /** HTTP 500, or a timeout with nothing usable. Retry or escalate. */
+  /** HTTP 500, 424, or a timeout with nothing usable. Retry or escalate. */
   | 'upstream'
   /** Startup only — the operator must fix configuration; the process refuses to start. */
   | 'config';

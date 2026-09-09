@@ -146,6 +146,62 @@ export const findCatalogueEntityOutputSchema = {
   completeness: completenessSchema
 };
 
+/**
+ * An event's parent level. The SAME three configuration levels as `entityTypeSchema`.
+ *
+ * Reused rather than redefined, and deliberately NOT widened to include `'event'`: an
+ * event sits at the bottom of the hierarchy and is never any other entity's ancestor, so
+ * an `'event'` member here would only ever be able to state something false.
+ */
+export const eventAncestorSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: entityTypeSchema
+});
+
+/** A market offered on an event — named, so the model need not ask a second time. */
+export const eventMarketSchema = z.object({
+  id: z.string(),
+  name: z.string()
+});
+
+/**
+ * A sporting event: a concrete fixture, distinct from the configuration levels above.
+ *
+ * `ancestors` is the same broadest-first shape `catalogueEntitySchema` uses, so the two
+ * tools' answers read alike even though the upstream responses they come from differ (one
+ * nests its parents, the other states them flat).
+ */
+export const catalogueEventSchema = z
+  .object({
+    id: z.string().describe('The event identifier, as the catalogue states it.'),
+    name: z.string(),
+    ancestors: z
+      .array(eventAncestorSchema)
+      .describe(
+        'Where this event sits, broadest first: superclass, then subclass, then event type. Risk settings attach to these levels rather than to the event itself.'
+      ),
+    markets: z.array(eventMarketSchema).describe('The markets offered on this event. May be empty.')
+  })
+  .describe('A sporting event and its position in the catalogue hierarchy.');
+
+/** Input of `get_event`. */
+export const getEventInputSchema = {
+  id: z
+    .string()
+    .min(1)
+    .describe(
+      'The event identifier, either "source:id" (e.g. "gpd:14643022") or a full urn. Take it from a bet leg — find_customer_bets and get_bet_risk_context report one per leg. A bare number is not accepted, because the source namespace cannot be inferred from it.'
+    ),
+  instances: instancesInputSchema
+};
+
+/** Output of `get_event`. */
+export const getEventOutputSchema = {
+  event: catalogueEventSchema,
+  completeness: completenessSchema
+};
+
 /** Input of `get_catalogue_entity`. */
 export const getCatalogueEntityInputSchema = {
   type: entityTypeSchema.describe(
@@ -165,3 +221,6 @@ export type BrandInstance = z.infer<typeof brandInstanceSchema>;
 export type CatalogueEntity = z.infer<typeof catalogueEntitySchema>;
 export type EntityType = z.infer<typeof entityTypeSchema>;
 export type Ancestor = z.infer<typeof ancestorSchema>;
+export type CatalogueEvent = z.infer<typeof catalogueEventSchema>;
+export type EventAncestor = z.infer<typeof eventAncestorSchema>;
+export type EventMarket = z.infer<typeof eventMarketSchema>;

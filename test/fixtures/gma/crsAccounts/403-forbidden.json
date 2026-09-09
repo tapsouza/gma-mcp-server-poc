@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-09-08T10:15:30.000Z",
+  "status": 403,
+  "error": "Forbidden",
+  "message": "Access denied for the requested operation",
+  "path": "/crs/accounts/{accountId}"
+}

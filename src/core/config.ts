@@ -27,6 +27,17 @@ export interface Config {
   readonly requestTimeoutMs: number;
   /** Above this match count, a search reports `tooBroad` instead of candidates. */
   readonly maxCandidates: number;
+  /**
+   * Maximum bets a customer bet search returns. Reaching it is REPORTED in the
+   * result (`limitReached`), never silently truncated (Principle V, FR-010).
+   */
+  readonly customerMaxBets: number;
+  /**
+   * Maximum distinct catalogue positions one composite call resolves. This is a
+   * CORRECTNESS bound, not a performance target: reaching it names the unresolved
+   * legs rather than dropping them (FR-023).
+   */
+  readonly customerMaxEventResolutions: number;
   readonly logLevel: LogLevel;
 }
 
@@ -75,6 +86,11 @@ const schema = z.object({
   OKTA_ISSUER: absoluteUrl('OKTA_ISSUER'),
   GMA_TIMEOUT_MS: positiveIntFromString('GMA_TIMEOUT_MS', 30_000),
   GMA_MAX_CANDIDATES: positiveIntFromString('GMA_MAX_CANDIDATES', 25),
+  // Both customer bounds are OPTIONAL WITH A DEFAULT, deliberately: the fail-fast
+  // rule would otherwise break every existing deployment's startup the moment this
+  // domain lands, which is a migration cost with no safety benefit.
+  CUSTOMER_MAX_BETS: positiveIntFromString('CUSTOMER_MAX_BETS', 20),
+  CUSTOMER_MAX_EVENT_RESOLUTIONS: positiveIntFromString('CUSTOMER_MAX_EVENT_RESOLUTIONS', 10),
   LOG_LEVEL: z
     .enum(['debug', 'info', 'warn', 'error'])
     .optional()
@@ -120,6 +136,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     oktaIssuer: raw.OKTA_ISSUER,
     requestTimeoutMs: raw.GMA_TIMEOUT_MS,
     maxCandidates: raw.GMA_MAX_CANDIDATES,
+    customerMaxBets: raw.CUSTOMER_MAX_BETS,
+    customerMaxEventResolutions: raw.CUSTOMER_MAX_EVENT_RESOLUTIONS,
     logLevel: raw.LOG_LEVEL
   });
 }

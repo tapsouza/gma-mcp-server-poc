@@ -1,0 +1,53 @@
+{
+  "errors": [
+    {
+      "message": "Exception while fetching data (/searchBets/results[0]/riskInfo) : Risk service did not respond within the read timeout",
+      "path": ["searchBets", "results", 0, "riskInfo"],
+      "extensions": {
+        "classification": "DataFetchingException"
+      }
+    },
+    {
+      "message": "Exception while fetching data (/searchBets/results[0]/legs) : Catalogue enrichment unavailable",
+      "path": ["searchBets", "results", 0, "legs"],
+      "extensions": {
+        "classification": "DataFetchingException"
+      }
+    }
+  ],
+  "data": {
+    "searchBets": {
+      "pageInfo": {
+        "count": 1,
+        "pages": 1
+      },
+      "results": [
+        {
+          "ids": {
+            "betId": "bet-000222",
+            "betReceiptId": "R-000222",
+            "accountId": "acct-test-0001"
+          },
+          "status": "ACTIVE",
+          "placementDate": "2026-09-02T12:00:00.000Z",
+          "betType": "PARLAY",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 3
+          },
+          "riskInfo": null,
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 50,
+            "potentialPayout": 600,
+            "winnings": 0,
+            "refunds": 0
+          },
+          "legs": null
+        }
+      ]
+    }
+  }
+}

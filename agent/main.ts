@@ -1,14 +1,22 @@
-// `process.loadEnvFile` MUST be the first statement, before any import that reads the
-// environment at module scope (contracts/config.md). The Bedrock provider's default
-// instance is constructed when `@ai-sdk/amazon-bedrock` is evaluated; import it against
-// an empty environment and it fails with an authentication error pointing nowhere near
-// the real cause. A Node 22 builtin, so no dotenv dependency.
-try {
-  process.loadEnvFile('.env');
-} catch {
-  // No `.env` is legitimate — the values may come from the real environment. A missing
-  // REQUIRED value is reported by `loadAgentConfig` below, naming the variable.
-}
+// `.env` is loaded by `node --env-file-if-exists=.env` in the `agent` npm script, NOT by
+// this file (contracts/config.md). Two reasons, both discovered by running it:
+//
+//  1. **A body statement cannot come first.** ESM `import` declarations are hoisted, so
+//     the in-code `loadEnvFile` call this file used to open with still ran AFTER
+//     `./repl/loop.js` — and therefore after `@ai-sdk/amazon-bedrock` — was evaluated.
+//     The ordering this file used to claim to guarantee was never achieved. The flag is
+//     applied by the runtime before any module is evaluated, so it genuinely holds.
+//  2. **In-code loading leaks the repository's `.env` into tests.** `agent/test/cli.test.ts`
+//     spawns this entrypoint with a deliberately minimal environment to assert the
+//     fail-fast exit codes (FR-010, SC-005). `loadEnvFile` does not overwrite variables
+//     that are already set, but it does FILL IN the ones the test omitted — so a
+//     developer machine with a working `.env` turned both of those tests green by
+//     supplying exactly the values the test had removed. Requiring an explicit flag makes
+//     the isolation structural: a spawn that does not ask for `.env` cannot receive it.
+//
+// The flag preserves the previous precedence exactly: a variable already present in the
+// real environment wins over the file, and a missing `.env` is not an error. A missing
+// REQUIRED value is reported by `loadAgentConfig` below, naming the variable.
 
 import { createInterface } from 'node:readline/promises';
 import { AgentConfigError, loadAgentConfig, type AgentConfig } from './config.js';

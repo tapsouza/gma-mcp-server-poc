@@ -1,0 +1,177 @@
+{
+  "data": {
+    "searchBets": {
+      "pageInfo": {
+        "count": 1,
+        "pages": 1
+      },
+      "results": [
+        {
+          "ids": {
+            "betId": "bet-000333",
+            "betReceiptId": "R-000333",
+            "accountId": "acct-test-0001"
+          },
+          "status": "SETTLED",
+          "placementDate": "2026-09-01T18:30:00.000Z",
+          "betType": "PARLAY",
+          "instance": "NJ",
+          "catalogueInstanceId": "urn:i:FD:US-NJ",
+          "productId": "prod-sb",
+          "numberOfLines": {
+            "total": 3
+          },
+          "riskInfo": {
+            "stakeFactor": 0.25,
+            "maxBet": 500,
+            "maxValue": 40,
+            "cumulativeMax": 60,
+            "overlayMax": 15,
+            "liabilityGroup": "Tight"
+          },
+          "wageInfo": {
+            "currency": "USD",
+            "stake": 125,
+            "potentialPayout": 437.5,
+            "winnings": 437.5,
+            "refunds": 0
+          },
+          "legs": [
+            {
+              "legNumber": 1,
+              "placedInPlay": false,
+              "result": "N",
+              "legPrice": {
+                "numerator": 2,
+                "denominator": 1
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gpd:9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gpd:9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gpd:9201"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gpd:9301"
+                }
+              },
+              "selection": {
+                "name": "Team A",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gpd:9401"
+                }
+              }
+            },
+            {
+              "legNumber": 2,
+              "placedInPlay": false,
+              "result": "N",
+              "legPrice": {
+                "numerator": 2,
+                "denominator": 1
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gpd:9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gpd:9101"
+                }
+              },
+              "event": {
+                "name": "Team C v Team D",
+                "entityIds": {
+                  "rampId": "9202",
+                  "gbpId": "gpd:9202"
+                }
+              },
+              "market": {
+                "name": "Match Winner",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gpd:9301"
+                }
+              },
+              "selection": {
+                "name": "Team C",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gpd:9401"
+                }
+              }
+            },
+            {
+              "legNumber": 3,
+              "placedInPlay": false,
+              "result": "N",
+              "legPrice": {
+                "numerator": 2,
+                "denominator": 1
+              },
+              "sport": {
+                "name": "Football",
+                "entityIds": {
+                  "rampId": "9001",
+                  "gbpId": "gpd:9001"
+                }
+              },
+              "competition": {
+                "name": "Premier League",
+                "entityIds": {
+                  "rampId": "9101",
+                  "gbpId": "gpd:9101"
+                }
+              },
+              "event": {
+                "name": "Team A v Team B",
+                "entityIds": {
+                  "rampId": "9201",
+                  "gbpId": "gpd:9201"
+                }
+              },
+              "market": {
+                "name": "Total Goals",
+                "entityIds": {
+                  "rampId": "9301",
+                  "gbpId": "gpd:9301"
+                }
+              },
+              "selection": {
+                "name": "Over 2.5",
+                "entityIds": {
+                  "rampId": "9401",
+                  "gbpId": "gpd:9401"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

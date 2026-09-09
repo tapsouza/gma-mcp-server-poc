@@ -1,0 +1,26 @@
+{
+  "event": {
+    "id": "urn:sbk:pc:e:gpd:9201",
+    "name": "Team A v Team B",
+    "superclassId": "urn:sbk:pc:spc:gpd:3",
+    "superclassName": "Football",
+    "subclassId": "urn:sbk:pc:sbc:gpd:7",
+    "subclassName": "|Premier League|",
+    "eventTypeId": "urn:sbk:pc:et:gpd:3307",
+    "eventTypeName": "Match Winner",
+    "markets": [
+      {
+        "id": "urn:sbk:pc:m:gpd:9301",
+        "name": "Match Winner"
+      }
+    ]
+  },
+  "successfulConfigSources": ["urn:i:FD:US-NJ"],
+  "failedConfigSources": ["urn:i:FD:US-PA"],
+  "errors": [
+    {
+      "configSource": "urn:i:FD:US-PA",
+      "message": "Was not possible to retrieve the Event for this instance"
+    }
+  ]
+}

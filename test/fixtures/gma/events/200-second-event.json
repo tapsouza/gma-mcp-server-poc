@@ -1,0 +1,18 @@
+{
+  "event": {
+    "id": "urn:sbk:pc:e:gpd:9202",
+    "name": "Team C v Team D",
+    "superclassId": "urn:sbk:pc:spc:gpd:3",
+    "superclassName": "Football",
+    "subclassId": "urn:sbk:pc:sbc:gpd:7",
+    "subclassName": "|Premier League|",
+    "eventTypeId": "urn:sbk:pc:et:gpd:3307",
+    "eventTypeName": "Match Winner",
+    "markets": [
+      {
+        "id": "urn:sbk:pc:m:gpd:9303",
+        "name": "Match Winner"
+      }
+    ]
+  }
+}

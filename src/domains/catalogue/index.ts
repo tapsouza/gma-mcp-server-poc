@@ -10,6 +10,8 @@ import {
   findCatalogueEntityOutputSchema,
   getCatalogueEntityInputSchema,
   getCatalogueEntityOutputSchema,
+  getEventInputSchema,
+  getEventOutputSchema,
   listInstancesOutputSchema
 } from './schemas.js';
 import {
@@ -20,6 +22,7 @@ import {
   GET_CATALOGUE_ENTITY_DESCRIPTION,
   getCatalogueEntity
 } from './tools/getCatalogueEntity.js';
+import { GET_EVENT_DESCRIPTION, getEvent } from './tools/getEvent.js';
 import { LIST_INSTANCES_DESCRIPTION, listInstances } from './tools/listInstances.js';
 
 /**
@@ -194,6 +197,44 @@ export function registerCatalogueDomain(server: McpServer, deps: DomainDeps): vo
       } catch (error) {
         logger.error({
           tool: 'get_catalogue_entity',
+          errorKind: isToolError(error) ? error.kind : 'upstream',
+          latencyMs: Date.now() - startedAt,
+          event: 'tool.error'
+        });
+        return toErrorResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    'get_event',
+    {
+      title: 'Get a sporting event by id',
+      description: GET_EVENT_DESCRIPTION,
+      inputSchema: getEventInputSchema,
+      outputSchema: getEventOutputSchema,
+      annotations: { readOnlyHint: true, openWorldHint: true }
+    },
+    async (args, extra) => {
+      const startedAt = Date.now();
+      try {
+        const token = extractOperatorToken(extra as RequestIdentitySource);
+        const result = await getEvent(client, config, token, {
+          id: args.id,
+          instances: args.instances
+        });
+
+        logger.info({
+          tool: 'get_event',
+          aggregateOutcome: result.completeness.outcome,
+          latencyMs: Date.now() - startedAt,
+          event: 'tool.success'
+        });
+
+        return toSuccessResult({ event: result.event, completeness: result.completeness });
+      } catch (error) {
+        logger.error({
+          tool: 'get_event',
           errorKind: isToolError(error) ? error.kind : 'upstream',
           latencyMs: Date.now() - startedAt,
           event: 'tool.error'

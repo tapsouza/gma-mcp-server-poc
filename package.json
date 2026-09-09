@@ -16,7 +16,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "build:agent": "tsc -p agent/tsconfig.json",
-    "agent": "npm run build && npm run build:agent && node dist-agent/main.js",
+    "agent": "npm run build && npm run build:agent && node --env-file-if-exists=.env dist-agent/main.js",
     "test:agent": "npm run build && npm run build:agent && vitest run -c agent/vitest.config.ts",
     "test:all": "npm test && npm run test:agent",
     "lint": "eslint . && prettier --check .",

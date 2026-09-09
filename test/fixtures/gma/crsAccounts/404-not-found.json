@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-09-08T10:15:30.000Z",
+  "status": 404,
+  "error": "Not Found",
+  "message": "No account exists with the supplied identifier",
+  "path": "/crs/accounts/{accountId}"
+}

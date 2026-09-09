@@ -1,0 +1,208 @@
+{
+  "accountId": "acct-test-0001",
+  "countryCode": "US",
+  "jurisdictionalCode": "US",
+  "customerNotes": {
+    "hasNotes": true,
+    "count": 2
+  },
+  "nickname": {
+    "nickname": "test-nickname",
+    "creatorName": "A Staff Member",
+    "updaterName": "Another Staff Member",
+    "createdAt": 1757000000000,
+    "updatedAt": 1757100000000
+  },
+  "contexts": [
+    {
+      "contextId": "ctx-us-nj",
+      "stakeFactor": 0.5,
+      "birDelay": 8,
+      "gmltl": true,
+      "maxWinningsCap": 50000,
+      "gpEligibility": "RESTRICTED",
+      "earlySettlementRestricted": true,
+      "gpPayoutLimitSingles": 10000,
+      "gpPayoutLimitMultiples": 25000,
+      "commercialBrand": "FD",
+      "liabilityGroup": {
+        "code": "LG3",
+        "description": "Managed Risk",
+        "interceptValue": 250,
+        "displayOrder": 3,
+        "colour": "#FFAA00"
+      },
+      "hierarchyGroups": [
+        {
+          "entityType": "SUPERCLASS",
+          "entityId": "3",
+          "stakeFactor": 0.25,
+          "liabilityGroup": {
+            "code": "LG5",
+            "description": "Tight",
+            "interceptValue": 100,
+            "displayOrder": 5,
+            "colour": "#FF0000"
+          },
+          "metadata": {
+            "entities": [
+              {
+                "entityType": "SUPERCLASS",
+                "entityId": "3",
+                "entityName": "Football"
+              }
+            ]
+          }
+        },
+        {
+          "entityType": "SUBCLASS",
+          "entityId": "7",
+          "stakeFactor": 0.1,
+          "liabilityGroup": {
+            "code": "LG6",
+            "description": "Very Tight",
+            "interceptValue": 50,
+            "displayOrder": 6,
+            "colour": "#CC0000"
+          },
+          "metadata": {
+            "entities": [
+              {
+                "entityType": "SUBCLASS",
+                "entityId": "7",
+                "entityName": "Premier League"
+              },
+              {
+                "entityType": "SUPERCLASS",
+                "entityId": "3",
+                "entityName": "Football"
+              }
+            ]
+          }
+        },
+        {
+          "entityType": "EVENT_TYPE",
+          "entityId": "3307",
+          "stakeFactor": 0.05,
+          "liabilityGroup": {
+            "code": "LG7",
+            "description": "Minimal",
+            "interceptValue": 25,
+            "displayOrder": 7,
+            "colour": "#990000"
+          },
+          "metadata": {
+            "entities": [
+              {
+                "entityType": "EVENT_TYPE",
+                "entityId": "3307",
+                "entityName": "Match Winner"
+              },
+              {
+                "entityType": "SUBCLASS",
+                "entityId": "7",
+                "entityName": "Premier League"
+              },
+              {
+                "entityType": "SUPERCLASS",
+                "entityId": "3",
+                "entityName": "Football"
+              }
+            ]
+          }
+        },
+        {
+          "entityType": "MARKET_TYPE",
+          "entityId": "507531",
+          "stakeFactor": 0.02,
+          "liabilityGroup": {
+            "code": "LG8",
+            "description": "Blocked",
+            "interceptValue": 10,
+            "displayOrder": 8,
+            "colour": "#660000"
+          },
+          "metadata": {
+            "entities": [
+              {
+                "entityType": "MARKET_TYPE",
+                "entityId": "507531",
+                "entityName": "Correct Score"
+              },
+              {
+                "entityType": "EVENT_TYPE",
+                "entityId": "3307",
+                "entityName": "Match Winner"
+              },
+              {
+                "entityType": "SUBCLASS",
+                "entityId": "7",
+                "entityName": "Premier League"
+              },
+              {
+                "entityType": "SUPERCLASS",
+                "entityId": "3",
+                "entityName": "Football"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "contextId": "ctx-us-pa",
+      "stakeFactor": 1.0,
+      "birDelay": 3,
+      "gmltl": false,
+      "gpEligibility": "STANDARD",
+      "gpPayoutLimitSingles": 100000,
+      "gpPayoutLimitMultiples": 250000,
+      "liabilityGroup": {
+        "code": "LG1",
+        "description": "Standard",
+        "interceptValue": 1000,
+        "displayOrder": 1,
+        "colour": "#00AA00"
+      },
+      "hierarchyGroups": []
+    },
+    {
+      "contextId": "ctx-us-co",
+      "stakeFactor": 2.0,
+      "birDelay": 0,
+      "gmltl": false,
+      "maxWinningsCap": 500000,
+      "gpEligibility": "UNRESTRICTED",
+      "liabilityGroup": {
+        "code": "LG0",
+        "description": "Unrestricted",
+        "interceptValue": 5000,
+        "displayOrder": 0,
+        "colour": "#0000AA"
+      },
+      "hierarchyGroups": [
+        {
+          "entityType": "SUPERCLASS",
+          "entityId": "urn:sc:tennis",
+          "stakeFactor": 3.0,
+          "liabilityGroup": {
+            "code": "LG0",
+            "description": "Unrestricted",
+            "interceptValue": 5000,
+            "displayOrder": 0,
+            "colour": "#0000AA"
+          },
+          "metadata": {
+            "entities": [
+              {
+                "entityType": "SUPERCLASS",
+                "entityId": "urn:sc:tennis",
+                "entityName": "Tennis"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
