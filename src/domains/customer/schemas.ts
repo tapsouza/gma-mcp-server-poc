@@ -524,6 +524,13 @@ export const getBetRiskContextInputSchema = {
 export const getBetRiskContextOutputSchema = {
   bet: betSchema.optional().describe('Absent only when the identifier matched several bets.'),
   jurisdictionMatch: jurisdictionMatchOutcomeSchema.optional(),
+  jurisdictionMatchMechanism: z
+    .enum(['ownConfiguration', 'platformContextList', 'derivation'])
+    .nullable()
+    .optional()
+    .describe(
+      'How the jurisdiction was matched, or null when it was not. "derivation" means the answer came from a US-state fallback rather than the platform\'s own jurisdiction list — treat it as less certain, and mention it if the user is relying on the jurisdiction being right.'
+    ),
   governingJurisdiction: jurisdictionRefSchema
     .optional()
     .describe('Present ONLY when jurisdictionMatch is "matched".'),

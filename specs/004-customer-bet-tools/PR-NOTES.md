@@ -69,9 +69,9 @@ None changes the design; each corrects a document against it.
 
 ## Defects found while implementing, not anticipated by the plan
 
-Seven, and five share one shape: **an identifier stated in two forms, failing silently.** Two of
-the seven were found only against **live** GMA, and neither was catchable by a fixture — see
-"Found only live" below.
+Ten, and six share one shape: **an identifier stated in two vocabularies, compared in only one of
+them, failing silently.** Four of the ten were found only against **live** GMA and none of those
+was catchable by a fixture — see "Found only live" below.
 
 1. **`core/completeness.ts` conflated two failure axes.** `toInstanceErrors` mapped any
    top-level `errors[]` into an `InstanceError`, which is right for the v5 envelope and wrong
@@ -104,7 +104,7 @@ the seven were found only against **live** GMA, and neither was catchable by a f
 
 ## Found only live, and why no fixture could have caught any of them
 
-All three were discovered during Validation 4 against dev GMA. They are recorded here because
+All four were discovered during Validation 4 against dev GMA. They are recorded here because
 they expose a real limit of this branch's test strategy: `test/MUST-COVER.md` claims a fixture for
 every distinguishable outcome of every operation, and **none of these outcomes could have been
 produced by a fixture derived from the schema** — each response is exactly what its schema says a
@@ -137,6 +137,42 @@ response looks like.
    could send would resolve it. The `gbpId` fix stands on its own merits (it removes an invented
    constant and matches GMA's join); it simply did not fix that symptom.
 
+   **R9 is now closed with evidence that discriminates.** A steel-thread ninefold resolved all
+   **nine** legs `resolvedVia: gbpId`, and `get_event` on `gpd:40646467` returned HTTP **200**
+   with a full hierarchy — the same operation, same id form, same instance scoping that 400s for
+   the OpenBet event. So the mechanism is confirmed by a case where the alternative would have
+   failed, and the OpenBet 400 is confirmed as upstream's rather than ours.
+
+9. **A bet may state its jurisdiction as a context NAME, and matching compared only ids and
+   codes.** A live bet reported `INTBS1` — which is `{ contextCode: 'NJ1', contextName: 'INTBS1' }`
+   — so it matched nothing and the tool answered `jurisdictionNotMatched`, meaning "we could not
+   tell what this bet's jurisdiction is", while the governing configuration sat in the very same
+   response *named* `INTBS1`. A trader asking why the bet got its limit is told the tool could not
+   work it out.
+
+   This is the **third** instance on this branch of one identifier stated in two vocabularies and
+   compared in only one of them (after the event URN and the FR-019 override join). That is now a
+   pattern rather than a coincidence, and the lesson for the next surface is to ask, for every
+   join: *which vocabularies can each side state this identifier in?*
+
+   Fixed by resolving a name through the platform's context list, **last** (so an id or code match
+   always wins) and **only when exactly one** context bears that name. The ambiguity guard is not
+   defensive decoration: the live list has two contexts sharing id `754`, so duplicate
+   human-authored values in this data are demonstrated. On a tie the outcome stays
+   `jurisdictionNotMatched` — attributing a bet to the wrong state's settings would be a confident
+   claim about a real customer's restrictions, which is worse than admitting we cannot tell. Names
+   are deliberately NOT compared inside `corresponds`, because a name is human-authored where a
+   code is platform-issued.
+
+10. **`mechanism` was computed on every match and never surfaced.** `matchJurisdiction` has always
+    returned which step produced the answer, and its own doc comment says it exists "for the caller
+    to report" — but no field carried it out. That threw away the one signal distinguishing "the
+    context list did its job" from "we fell back to derivation and got lucky". Constitution v1.2.0
+    makes the context list primary and derivation "a fallback, never the primary mechanism"; with
+    the field discarded, an inversion of that ordering was invisible in the field, which is
+    precisely where it matters — US bets keep working and every non-US bet is confidently wrong.
+    Now surfaced as `jurisdictionMatchMechanism`.
+
 8. **An all-zero metrics response is indistinguishable from "this customer has never bet."** A
    customer with **3,795 bets** — confirmed via `find_customer_bets` in the same session —
    returned metrics reading zero on every measure, in a schema-valid HTTP 200 with no `errors[]`.
@@ -168,12 +204,14 @@ response looks like.
    primitive/boxed split — a reproducible statement about GMA rather than a guess.
 
 **The strategy gap this leaves open.** Fixtures verify that code and fixture agree; they cannot
-verify that either matches upstream. Every defect above was of that kind, and two of the three
-were made worse by fixtures authored from the same assumption as the code they were checking. The
-mitigation available today is quickstart.md's Validation 4, and this run is the argument for
-treating it as **mandatory** before release rather than optional. Two of the eight defects on this
-branch were reachable no other way, and the third — the all-zero metrics — would have shipped as a
-tool that confidently tells operators a customer has never bet.
+verify that either matches upstream. Every defect above was of that kind, and two were made worse
+by fixtures authored from the same assumption as the code they were checking. The mitigation
+available today is quickstart.md's Validation 4, and this run is the argument for treating it as
+**mandatory** before release rather than optional: **four of this branch's ten defects were
+reachable no other way**, and three of those four would have shipped as confidently wrong answers
+about real customers rather than as visible failures — that a customer has never bet, that a bet's
+jurisdiction could not be determined, and that no configuration governed a bet whose governing
+configuration was in the same response.
 
 ## Additions to `core`, both opt-in and additive
 
@@ -204,7 +242,32 @@ open with an owner, since it cannot be settled by observation.
 | --- | ---------- | ----------------- | ----- |
 | ~~**R9**~~ | ~~`leg.event.entityIds.rampId`, URN-prefixed, is the v5 event identifier~~ | **CLOSED 2026-09-09 — against the assumption.** See below. | closed |
 | ~~**R14**~~ | ~~A bet's applied `liabilityGroup` string is the configured group's `description`~~ | **CLOSED 2026-09-09 — as assumed.** A live bet reported `configuredValue: "Marks Soccer AT"` against `appliedValue: "Arber"` — both human-authored descriptions, not codes. The `code` fallback never fired, and the three-valued verdict correctly reported `differs` with both strings visible rather than a confident wrong answer. | closed |
-| **R8** | An unconfigured jurisdiction is omitted from a customer's configuration list rather than returned empty | **Ask a human who owns CRS** — this cannot be settled by observation alone | CRS system owner |
+| **R8** | An unconfigured jurisdiction is omitted from a customer's configuration list rather than returned empty | **Ask a human who owns CRS.** Live evidence now points strongly at OMISSION — see below — but "is that by design?" is still a question only the owner can answer | CRS system owner |
+
+### R8 — narrowed by observation, not yet closed
+
+The 2026-09-09 run makes the question much sharper than it was. `GET /crs/contexts` returned
+**35** contexts; account `100119636` returned configurations for **3** (`NJ`, `NJ1`, `NXTCANBS`).
+The other 32 were **absent entirely** — not present-with-defaults, not empty rows.
+
+So the observed behaviour is omission. What observation still cannot settle is whether that is
+CRS's contract or an artefact: an omitted jurisdiction and one CRS simply failed to return look
+identical from outside, which is exactly why FR-018's second outcome states the fact
+(`noConfigurationForJurisdiction`) rather than inferring "default settings apply".
+
+**The question for the CRS owner, in the form to ask it:** *for a customer with no configuration
+in a jurisdiction, does `GET /crs/accounts/{id}` omit that context from `contexts` entirely, or
+return it with default-only values? If it omits, is that guaranteed — i.e. can a consumer treat
+"absent" as "unconfigured", or only as "not returned this time"?*
+
+Two incidental findings from the same response, neither ours to fix, both worth recording because
+a future reader will hit them:
+
+- **The dev contexts list carries non-jurisdictions** — `AX`, `YY`, `US-XX`, `prdtst`. Harmless
+  here (they are looked up, never derived), but a caller that treated the list as a jurisdiction
+  registry would be wrong.
+- **Two contexts share the id `754`** — `NJ1` and `WV`. That collision is the concrete reason the
+  name-matching fix below refuses to resolve an ambiguous name rather than picking the first.
 
 ### R9 closed AGAINST the assumption, and how a passing test hid that
 

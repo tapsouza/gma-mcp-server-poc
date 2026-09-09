@@ -134,6 +134,55 @@ function corresponds(configuration: CustomerRiskConfiguration, candidate: string
 }
 
 /**
+ * The one context whose NAME is the given value, or `null` when zero or several match.
+ *
+ * ## The live defect this exists for
+ *
+ * A bet reported its jurisdiction as **`INTBS1`** — which is a context *name*, not a code
+ * (`{ contextCode: 'NJ1', contextName: 'INTBS1' }`). `corresponds` compares `id` and
+ * `code` only, so the bet matched nothing and the tool answered
+ * `jurisdictionNotMatched` — "we could not tell what this bet's jurisdiction is" — for a
+ * bet whose governing configuration was present in the very same response, named
+ * `INTBS1`.
+ *
+ * Same shape as the FR-019 override join: **one identifier stated in two vocabularies,
+ * compared in only one of them.** And the cost is the same — a trader asking "why did
+ * this bet get this limit?" is told the tool could not work it out, while the answer sits
+ * unmatched beside it.
+ *
+ * ## Why names are matched HERE and not in `corresponds`
+ *
+ * Two reasons, and both are about not trading one wrong answer for a worse one.
+ *
+ * A code is issued by the platform; a **name is human-authored**, so it can collide where
+ * a code would not. Matching a name inside `corresponds` would let any two identically
+ * named jurisdictions be interchanged, and attributing a bet to the WRONG state's
+ * settings is worse than reporting no match — it is a confident claim about a real
+ * customer's restrictions.
+ *
+ * So a name is only ever resolved through the platform's own list, and only when
+ * **exactly one** context bears it. That ambiguity guard is not hypothetical: the live
+ * list holds 35 contexts and two of them already share the id `754` (`NJ1` and `WV`), so
+ * duplicate human-authored values in this data are demonstrated rather than imagined. On
+ * a tie this returns `null` and the outcome stays `jurisdictionNotMatched` — an honest
+ * "we could not tell", which is what the outcome means.
+ *
+ * Names are also matched LAST within step 2, after id and code, so an exact code match
+ * always wins over a name that happens to coincide with it.
+ */
+function uniqueContextByName(
+  platformContexts: readonly JurisdictionRef[],
+  betJurisdiction: string
+): JurisdictionRef | null {
+  const target = normalise(betJurisdiction);
+  const named = platformContexts.filter((candidate) => normalise(candidate.name) === target);
+
+  // Exactly one, or nothing. Picking the first of several would be the auto-pick
+  // Principle IV prohibits, applied to a customer's trading restrictions.
+  return named.length === 1 ? (named[0] as JurisdictionRef) : null;
+}
+
+/**
  * Match a bet's jurisdiction to one of the customer's configurations.
  *
  * @param betJurisdiction what the BET reported about itself — `instance` on the QBS
@@ -174,13 +223,18 @@ export function matchJurisdiction(
   // This is what resolves the cases derivation provably cannot: a context whose code
   // bears no relation to the catalogue jurisdiction identifier.
   if (platformContexts !== null) {
-    const context = platformContexts.find(
-      (candidate) =>
-        normalise(candidate.id) === normalise(betJurisdiction) ||
-        normalise(candidate.code) === normalise(betJurisdiction) ||
-        lastSegment(betJurisdiction) === normalise(candidate.code) ||
-        lastSegment(betJurisdiction) === lastSegment(candidate.id)
-    );
+    const context =
+      platformContexts.find(
+        (candidate) =>
+          normalise(candidate.id) === normalise(betJurisdiction) ||
+          normalise(candidate.code) === normalise(betJurisdiction) ||
+          lastSegment(betJurisdiction) === normalise(candidate.code) ||
+          lastSegment(betJurisdiction) === lastSegment(candidate.id)
+      ) ??
+      // A bet may identify its jurisdiction by NAME (live: `INTBS1`). Tried last, so an
+      // id or code match always wins, and only when the name is unambiguous.
+      uniqueContextByName(platformContexts, betJurisdiction) ??
+      undefined;
 
     if (context !== undefined) {
       const viaContext = configurations.find((configuration) =>

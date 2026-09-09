@@ -184,6 +184,20 @@ describe('get_bet_risk_context (Story 3, P3)', () => {
       expect(result.attributionNotice).toBeUndefined();
     });
 
+    it('reports WHICH mechanism matched the jurisdiction, not just that one did', async () => {
+      // The matcher always computed this and its doc comment says it exists "for the
+      // caller to report" — but nothing surfaced it, so the single signal that
+      // distinguishes "the context list did its job" from "we fell back to derivation and
+      // got lucky" was computed and thrown away. If this ever reads `derivation` for every
+      // bet, the context hop is failing silently and non-US bets are wrong.
+      allHopsSucceed();
+
+      const result = await getBetRiskContext(deps(), TEST_TOKEN, { betId: 'bet-000111' });
+
+      expect(result.jurisdictionMatchMechanism).toBeDefined();
+      expect(result.jurisdictionMatchMechanism).not.toBe('derivation');
+    });
+
     it("reports resolvedVia, which is R9's closure evidence", async () => {
       allHopsSucceed();
 

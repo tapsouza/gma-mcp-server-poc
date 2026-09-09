@@ -134,6 +134,18 @@ export interface GetBetRiskContextArgs {
 export interface GetBetRiskContextResult {
   readonly bet?: Bet;
   readonly jurisdictionMatch?: JurisdictionMatchOutcome['match'];
+  /**
+   * WHICH step matched the jurisdiction. `null` when nothing matched.
+   *
+   * The matcher has always computed this and its own doc comment says it exists "for the
+   * caller to report" — but nothing surfaced it, so the one signal that distinguishes
+   * "the context list did its job" from "we fell back to derivation and got lucky" was
+   * computed and discarded. Constitution v1.2.0 makes the context list PRIMARY and
+   * derivation "a fallback, never the primary mechanism"; without this field, an
+   * inversion of that ordering is invisible in the field, which is exactly where it
+   * matters (US bets keep working, non-US bets are confidently wrong).
+   */
+  readonly jurisdictionMatchMechanism?: JurisdictionMatchOutcome['mechanism'];
   readonly governingJurisdiction?: JurisdictionRef;
   readonly allJurisdictionConfigurations?: CustomerRiskConfiguration[];
   readonly resolvedLegs?: ResolvedLeg[];
@@ -448,6 +460,7 @@ export async function getBetRiskContext(
   return {
     bet,
     jurisdictionMatch: outcome.match,
+    jurisdictionMatchMechanism: outcome.mechanism,
     ...(outcome.governing === null ? {} : { governingJurisdiction: outcome.governing }),
     // ALWAYS every configuration that exists, whatever the match outcome (FR-018).
     allJurisdictionConfigurations: configurations,

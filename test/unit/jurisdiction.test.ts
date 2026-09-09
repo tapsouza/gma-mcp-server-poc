@@ -229,6 +229,84 @@ describe('jurisdiction matching (FR-018)', () => {
     });
   });
 
+  describe('case: a bet may name its jurisdiction by NAME, and that must still match', () => {
+    /**
+     * A REGRESSION SUITE for a live defect found during Validation 4.
+     *
+     * A bet reported its jurisdiction as **`INTBS1`**, which is a context NAME:
+     * `{ contextCode: 'NJ1', contextName: 'INTBS1' }`. Matching compared `id` and `code`
+     * only, so the bet matched nothing and the tool reported `jurisdictionNotMatched` —
+     * "we could not tell what this bet's jurisdiction is" — while the governing
+     * configuration sat in the very same response, named `INTBS1`.
+     *
+     * Same shape as the FR-019 override join: one identifier stated in two vocabularies,
+     * compared in only one of them. And the same cost: a trader asking why a bet got its
+     * limit is told the tool could not work it out.
+     */
+    const NJ1: JurisdictionRef = { code: 'NJ1', id: '754', name: 'INTBS1' };
+    const NJ_NXT: JurisdictionRef = { code: 'NJ', id: '927', name: 'NXTBS1' };
+    const LIVE_CONTEXTS: JurisdictionRef[] = [NJ_NXT, NJ1, ONTARIO];
+
+    it('matches a bet whose jurisdiction is a context NAME (the live case)', () => {
+      const result = matchJurisdiction('INTBS1', [configuration(NJ1)], LIVE_CONTEXTS);
+
+      expect(result.match).toBe('matched');
+      expect(result.governing).toEqual(NJ1);
+      // Through the platform's own list, which is where v1.2.0 requires this to happen.
+      expect(result.mechanism).toBe('platformContextList');
+    });
+
+    it('REFUSES to match an ambiguous name rather than picking one', () => {
+      // The guard that keeps this fix from being worse than the defect. A name is
+      // human-authored, so it can collide where a code cannot — and the live list already
+      // has two contexts sharing the id `754`, so duplicates in this data are demonstrated
+      // rather than imagined. Attributing a bet to the WRONG state's settings is a
+      // confident claim about a real customer's restrictions; refusing is honest.
+      const collides: JurisdictionRef = { code: 'WV', id: '754', name: 'INTBS1' };
+
+      const result = matchJurisdiction(
+        'INTBS1',
+        [configuration(NJ1), configuration(collides)],
+        [...LIVE_CONTEXTS, collides]
+      );
+
+      expect(result.match).toBe('jurisdictionNotMatched');
+      expect(result.governing).toBeNull();
+    });
+
+    it('prefers an exact CODE match over a name that coincides with it', () => {
+      // Names are tried LAST within step 2, so a platform-issued code always wins.
+      const confusing: JurisdictionRef = { code: 'INTBS1', id: '999', name: 'Somewhere Else' };
+      const decoy: JurisdictionRef = { code: 'ZZ', id: '888', name: 'INTBS1' };
+
+      const result = matchJurisdiction(
+        'INTBS1',
+        [configuration(confusing), configuration(decoy)],
+        [confusing, decoy]
+      );
+
+      expect(result.governing).toEqual(confusing);
+    });
+
+    it('does not let a NAME match reach outcome 2 by the back door', () => {
+      // The jurisdiction is real (the platform names it) but this customer has no
+      // configuration for it — a fact about the customer, not a matching failure.
+      const result = matchJurisdiction('INTBS1', [configuration(NJ_NXT)], LIVE_CONTEXTS);
+
+      expect(result.match).toBe('noConfigurationForJurisdiction');
+      expect(result.governing).toBeNull();
+    });
+
+    it('never matches a name when the context list is ABSENT', () => {
+      // Names resolve ONLY through the platform's list. With no list there is nothing to
+      // check a name against, and inventing a comparison against the configurations'
+      // own names is exactly the collision risk this design avoids.
+      const result = matchJurisdiction('INTBS1', [configuration(NJ1)], null);
+
+      expect(result.match).toBe('jurisdictionNotMatched');
+    });
+  });
+
   describe('case: outcome 4 — jurisdictionUnknown when the bet reported nothing', () => {
     it.each([
       ['null', null],

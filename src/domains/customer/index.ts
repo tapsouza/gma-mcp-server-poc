@@ -301,6 +301,9 @@ export function registerCustomerDomain(server: McpServer, deps: DomainDeps): voi
           ...(result.jurisdictionMatch === undefined
             ? {}
             : { jurisdictionMatch: result.jurisdictionMatch }),
+          ...(result.jurisdictionMatchMechanism === undefined
+            ? {}
+            : { jurisdictionMatchMechanism: result.jurisdictionMatchMechanism }),
           ...(result.governingJurisdiction === undefined
             ? {}
             : { governingJurisdiction: result.governingJurisdiction }),
