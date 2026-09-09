@@ -387,15 +387,25 @@ export async function getBetRiskContext(
 
   const resolved = new Map<string, ResolvedEvent>();
   const failed = new Set<string>();
+  const unusable = new Set<string>();
 
   for (const eventId of toResolve) {
+    // A leg whose identifier cannot be turned into a GBP long URN is NOT looked up. The
+    // `source` namespace lives in the `gbpId` value and is never assumed, so a bare
+    // number yields `null` here (see `toEventLookupId`). Attempting a fabricated URN is
+    // what produced a live 400; skipping is the honest alternative, and GMA's own join
+    // does the same (`Rule4EnrichmentService:114` skips a leg with a blank gbpId).
+    const lookupId = toEventLookupId(eventId);
+    if (lookupId === null) {
+      unusable.add(eventId);
+      continue;
+    }
+
     try {
-      // R9's bridge is `rampId` PREFIXED with the event URN, not the bare value
-      // (`linkManager.ts:51` reads it, `:88` prefixes it). The bookkeeping below keys off
-      // the projected `eventId` so dedupe and per-leg attribution stay in the bet's own
-      // vocabulary; only the URL carries the upstream form.
+      // The bookkeeping keys off the PROJECTED `eventId` so dedupe and per-leg
+      // attribution stay in the bet's own vocabulary; only the URL carries the URN.
       const eventResult = await client.get<EventResponse>(
-        `/v5/events/${encodeURIComponent(toEventLookupId(eventId))}`,
+        `/v5/events/${encodeURIComponent(lookupId)}`,
         {
           token,
           pathTemplate: EVENT_TEMPLATE,
@@ -425,7 +435,7 @@ export async function getBetRiskContext(
   const resolvedLegs = resolveLegs({
     legs: bet.legs,
     eventIdSources,
-    resolutions: { resolved, failed, notAttempted: new Set(beyondBound) },
+    resolutions: { resolved, failed, notAttempted: new Set(beyondBound), unusable },
     overrides: governing?.overrides ?? []
   });
 

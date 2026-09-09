@@ -27,6 +27,7 @@ import event206 from '../fixtures/gma/events/206-partial.json' with { type: 'jso
 import event500 from '../fixtures/gma/events/500-server-error.json' with { type: 'json' };
 import qbsSingle from '../fixtures/gma/qbsSearchBets/200-single-bet.json' with { type: 'json' };
 import qbsMultiLeg from '../fixtures/gma/qbsSearchBets/200-multi-leg-bet.json' with { type: 'json' };
+import qbsOpenbet from '../fixtures/gma/qbsSearchBets/200-openbet-bet.json' with { type: 'json' };
 import qbsMultiple from '../fixtures/gma/qbsSearchBets/200-multiple-matches.json' with { type: 'json' };
 import qbsNoMatch from '../fixtures/gma/qbsSearchBets/200-no-match.json' with { type: 'json' };
 
@@ -188,7 +189,9 @@ describe('get_bet_risk_context (Story 3, P3)', () => {
       const result = await getBetRiskContext(deps(), TEST_TOKEN, { betId: 'bet-000111' });
 
       // A field LEVEL, never an identifier — so it carries no personal datum.
-      expect(result.resolvedLegs![0]!.resolvedVia).toBe('rampId');
+      // `gbpId` is R9's CLOSED answer: it is the member carrying the `source` namespace,
+      // and the only one from which a catalogue URN can be built without inventing one.
+      expect(result.resolvedLegs![0]!.resolvedVia).toBe('gbpId');
     });
 
     it('sends the event id in the URN form R9 documents, not the bare rampId', async () => {
@@ -231,6 +234,80 @@ describe('get_bet_risk_context (Story 3, P3)', () => {
 
       expect(url.searchParams.getAll('sources')).toEqual(['urn:i:FD:US-NJ']);
       expect(url.searchParams.getAll('instancesList')).toEqual([]);
+    });
+  });
+
+  describe('case: an OpenBet leg carries no namespaced id, and NO lookup is attempted', () => {
+    /**
+     * A REGRESSION SUITE for a live defect. There are two bet stacks: steel-thread bets
+     * (processed internally, ids shaped `urn:sbk:bet:…`) whose legs carry a namespaced
+     * `gbpId`, and **OpenBet** bets (numeric ids, `isOb: true`) whose legs may carry only a
+     * bare `rampId`.
+     *
+     * The code hardcoded `urn:sbk:pc:e:gpd:` and prefixed the `rampId`, inventing a `source`
+     * namespace. Against a real OpenBet bet GMA answered **HTTP 400** — and the whole
+     * composite went PARTIAL for every bet on that stack.
+     *
+     * GMA's own join does not do this: `Rule4EnrichmentService:121` builds the URN from
+     * `entityIds.gbpId` via `GbpId.fromSourceId`, which requires `source:sourceId`, and
+     * `:114` SKIPS a leg whose gbpId is blank rather than substituting anything.
+     */
+    function openbetHops(): void {
+      server.use(
+        http.post(QBS, () => HttpResponse.json(qbsOpenbet)),
+        http.get(CRS_ACCOUNT, () => HttpResponse.json(crsAccount)),
+        http.get(CRS_CONTEXTS, () => HttpResponse.json(crsContexts))
+        // NO event handler on purpose: `onUnhandledRequest: 'error'` means any event call
+        // fails this suite, which is exactly the property under test.
+      );
+    }
+
+    it('makes NO event call at all, rather than one with a fabricated namespace', async () => {
+      openbetHops();
+
+      const result = await getBetRiskContext(deps(), TEST_TOKEN, { betId: '575487504' });
+
+      expect(result.bet!.betId).toBe('575487504');
+      expect(result.resolvedLegs).toHaveLength(1);
+    });
+
+    it('reports the leg as notResolvedIdentifierUnusable, NOT as an upstream failure', async () => {
+      // The distinction Principle IV requires: an upstream failure invites a retry, and no
+      // retry can supply a namespace the bet never carried. Folding them would hide a
+      // systematic identifier problem in a bucket that reads as transient.
+      openbetHops();
+
+      const result = await getBetRiskContext(deps(), TEST_TOKEN, { betId: '575487504' });
+      const [leg] = result.resolvedLegs!;
+
+      expect(leg!.resolution).toBe('notResolvedIdentifierUnusable');
+      expect(leg!.resolution).not.toBe('notResolvedUpstreamFailure');
+      expect(leg!.cataloguePath).toBeNull();
+      // Empty means NOTHING IS KNOWN here, and `resolution` is what says so.
+      expect(leg!.overridesInScope).toEqual([]);
+    });
+
+    it('still reports WHICH member the leg carried, so the cause is legible', async () => {
+      // `rampId` on an unresolved leg is the diagnosis: this leg had no namespaced
+      // identifier, so no lookup was possible. A null would hide why.
+      openbetHops();
+
+      const result = await getBetRiskContext(deps(), TEST_TOKEN, { betId: '575487504' });
+
+      expect(result.resolvedLegs![0]!.resolvedVia).toBe('rampId');
+    });
+
+    it('names the missing section and stays answerable', async () => {
+      openbetHops();
+
+      const result = await getBetRiskContext(deps(), TEST_TOKEN, { betId: '575487504' });
+
+      expect(result.completeness.unavailableComponents).toContain('legCataloguePositions');
+      expect(result.completeness.complete).toBe(false);
+      // Everything NOT downstream of the leg position is still delivered in full.
+      expect(result.jurisdictionMatch).toBe('matched');
+      expect(result.agreement).toHaveLength(2);
+      expect(result.allJurisdictionConfigurations).toHaveLength(3);
     });
   });
 
@@ -538,7 +615,7 @@ describe('get_bet_risk_context (Story 3, P3)', () => {
       expect(deferred).toHaveLength(1);
       expect(deferred[0]!.legNumber).toBe(2);
       // The identifier WAS usable; we simply did not spend a lookup on it.
-      expect(deferred[0]!.resolvedVia).toBe('rampId');
+      expect(deferred[0]!.resolvedVia).toBe('gbpId');
     });
 
     it('makes exactly as many event calls as the bound allows', async () => {

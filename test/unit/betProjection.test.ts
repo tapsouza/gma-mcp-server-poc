@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  toEventLookupId,
   toProjectedBet,
   toProjectedBets,
   totalMatched,
@@ -211,8 +212,8 @@ describe('QBS bet projection', () => {
     it('records rampId when it is present, since that is the observed bridge', () => {
       const [projected] = toProjectedBets(asResponse(qbsSingle));
 
-      expect(projected!.eventIdSources.get(1)).toBe('rampId');
-      expect(projected!.bet.legs[0]!.event.id).toBe('9201');
+      expect(projected!.eventIdSources.get(1)).toBe('gbpId');
+      expect(projected!.bet.legs[0]!.event.id).toBe('gpd:9201');
     });
 
     it('falls back to gbpId and records THAT instead', () => {
@@ -249,9 +250,9 @@ describe('QBS bet projection', () => {
       const [projected] = toProjectedBets(asResponse(qbsMultiLeg));
 
       expect(projected!.bet.legs).toHaveLength(3);
-      expect(projected!.eventIdSources.get(1)).toBe('rampId');
-      expect(projected!.eventIdSources.get(2)).toBe('rampId');
-      expect(projected!.eventIdSources.get(3)).toBe('rampId');
+      expect(projected!.eventIdSources.get(1)).toBe('gbpId');
+      expect(projected!.eventIdSources.get(2)).toBe('gbpId');
+      expect(projected!.eventIdSources.get(3)).toBe('gbpId');
     });
 
     it('reports the source as a FIELD LEVEL, never as an identifier value', () => {
@@ -277,7 +278,7 @@ describe('QBS bet projection', () => {
       const [projected] = toProjectedBets(asResponse(qbsMultiLeg));
       const eventIds = projected!.bet.legs.map((leg) => leg.event.id);
 
-      expect(eventIds).toEqual(['9201', '9202', '9201']);
+      expect(eventIds).toEqual(['gpd:9201', 'gpd:9202', 'gpd:9201']);
       expect(new Set(eventIds).size).toBe(2);
     });
 
@@ -472,6 +473,68 @@ describe('QBS bet projection', () => {
     it('returns null when upstream reported no count', () => {
       expect(totalMatched({})).toBeNull();
       expect(totalMatched({ data: { searchBets: { results: [] } } })).toBeNull();
+    });
+  });
+});
+
+describe('toEventLookupId — the GBP long URN, never an invented namespace', () => {
+  /**
+   * Mirrors GMA's own `GbpId.fromSourceId(gbpId, "e").toLongUrn()`
+   * (`Rule4EnrichmentService:121`, `GbpId.java:17`).
+   *
+   * The property that matters is the NEGATIVE one: a value with no `source:` segment must
+   * yield `null`, not a guess. The previous implementation hardcoded `gpd` and produced a
+   * live HTTP 400 against an OpenBet bet — an id nobody ever issued.
+   */
+  describe('case: a namespaced gbpId becomes a long URN, with the source READ from the value', () => {
+    it.each([
+      ['gpd:14643022', 'urn:sbk:pc:e:gpd:14643022'],
+      ['gbp:12345', 'urn:sbk:pc:e:gbp:12345'],
+      ['gpd:1', 'urn:sbk:pc:e:gpd:1']
+    ])('maps %s to %s', (input, expected) => {
+      expect(toEventLookupId(input)).toBe(expected);
+    });
+
+    it('never substitutes a DEFAULT source, whatever the value looks like', () => {
+      // The whole defect in one assertion: `gpd` must appear only when the DATA said so.
+      expect(toEventLookupId('gbp:999')).toContain(':gbp:');
+      expect(toEventLookupId('gbp:999')).not.toContain(':gpd:');
+    });
+  });
+
+  describe('case: an id carrying NO namespace yields null rather than a fabrication', () => {
+    it.each([
+      ['a bare OpenBet rampId', '14643022'],
+      ['a short numeric id', '9201'],
+      ['an empty source', ':9201'],
+      ['an empty source id', 'gpd:'],
+      ['too many segments', 'gpd:9201:extra'],
+      ['nothing at all', '']
+    ])('returns null for %s', (_label, input) => {
+      expect(toEventLookupId(input)).toBeNull();
+    });
+
+    it('is what makes an OpenBet leg honestly unresolvable rather than wrongly looked up', () => {
+      // GMA skips such a leg too (`Rule4EnrichmentService:114`). A null here becomes
+      // `notResolvedIdentifierUnusable`, which is an honest "we do not know this leg's
+      // position" — categorically better than a confident lookup of an invented id.
+      expect(toEventLookupId('14643022')).toBeNull();
+    });
+  });
+
+  describe('case: an already-assembled long URN passes through unchanged', () => {
+    it('is idempotent, so an upstream that starts sending URNs does not break the hop', () => {
+      const urn = 'urn:sbk:pc:e:gpd:14643022';
+
+      expect(toEventLookupId(urn)).toBe(urn);
+      expect(toEventLookupId(toEventLookupId('gpd:14643022') as string)).toBe(urn);
+    });
+
+    it('rejects a urn: value that is not the six-part long form', () => {
+      // `GbpId.fromLongUrn` requires exactly six parts and throws otherwise, so a short
+      // urn is not silently forwarded.
+      expect(toEventLookupId('urn:gpd:14643022')).toBeNull();
+      expect(toEventLookupId('urn:sbk:pc:e:gpd')).toBeNull();
     });
   });
 });

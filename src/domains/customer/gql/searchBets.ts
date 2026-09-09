@@ -65,6 +65,7 @@ export const SEARCH_BETS_DOCUMENT = `query ${SEARCH_BETS_OPERATION_NAME}($input:
       betType
       instance
       catalogueInstanceId
+      isOb
       productId
       numberOfLines {
         total

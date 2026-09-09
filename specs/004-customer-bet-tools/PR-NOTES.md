@@ -53,7 +53,9 @@ None changes the design; each corrects a document against it.
 
 ## Defects found while implementing, not anticipated by the plan
 
-Five, and four share one shape: **an identifier stated in two forms, failing silently.**
+Seven, and five share one shape: **an identifier stated in two forms, failing silently.** Two of
+the seven were found only against **live** GMA, and neither was catchable by a fixture — see
+"Found only live" below.
 
 1. **`core/completeness.ts` conflated two failure axes.** `toInstanceErrors` mapped any
    top-level `errors[]` into an `InstanceError`, which is right for the v5 envelope and wrong
@@ -68,10 +70,9 @@ Five, and four share one shape: **an identifier stated in two forms, failing sil
    fanned out across every instance. `GmaCallOptions.instancesParam` now carries the name per
    call, as the constitution's "MUST NOT be assumed uniform" rule requires.
 
-3. **The event lookup sent the bare `rampId`.** R9's only evidence is `rampId` **prefixed** with
-   `urn:sbk:pc:e:gpd:` (`gbpbmui-tool/src/utils/linkManager.ts:51` reads it, `:88` prefixes it).
-   Every leg would have 404'd — and because an unresolvable leg reports
-   `notResolvedIdentifierUnusable`, the symptom is **indistinguishable from R9 being wrong**.
+3. **The event lookup sent the bare `rampId`.** Fixed mid-branch by prefixing it — and that fix
+   was itself wrong, superseded by defect 7 below. Recorded because the intermediate state is
+   what made the live diagnosis legible.
 
 4. **The FR-019 override join could not match.** CRS states override ids bare (`'3'`, `'3307'`;
    `crs-service/docs/openapi/api.yaml`, `gbpcrsui-tool/src/constants/mocks.ts:541`) while
@@ -84,6 +85,39 @@ Five, and four share one shape: **an identifier stated in two forms, failing sil
 5. **The composite mapped CRS before fetching the context list.** Every configuration therefore
    carried a bare `contextId` that nothing could bridge to the bet's jurisdiction code, so
    every bet reported `jurisdictionNotMatched`. Mapping now happens after both hops answer.
+
+## Found only live, and why no fixture could have caught either
+
+Both were discovered during Validation 4 against dev GMA. Both are recorded here because they
+expose a real limit of this branch's test strategy: `test/MUST-COVER.md` claims a fixture for
+every distinguishable outcome of every operation, and **neither of these outcomes can be
+produced by a fixture at all.**
+
+6. **QBS `pageNumber` is ZERO-based; we sent `1`.** That asks for the SECOND page. A single-bet
+   lookup is one page long, so QBS answered HTTP 200 with `pageInfo.count: 0` and no `errors[]`
+   — indistinguishable from "this bet does not exist". `find_customer_bets` returned
+   `kind: 'none'` and `get_bet_risk_context` failed at hop 1, making the **entire composite
+   unreachable for any single bet**. The schema documents `pageNumber` only as "The number of
+   the page requested"; the convention comes from `useDynamicQuery.ts:91` (the front-end
+   converts a one-based index on the way out) and `BetExportProgress.java:8` (GMA's own export
+   starts at 0). Now a named `FIRST_PAGE` constant carrying that provenance.
+
+   *Why no fixture could catch it:* `msw` ignores `pageNumber` entirely and returns whatever the
+   handler holds. Every offline test passed with either value.
+
+7. **The event URN's `source` segment is DATA, not a constant.** See the R9 section below for the
+   full account. Short version: `gpd` was hardcoded, the real source comes from the `gbpId`
+   value, and inventing it produced a live HTTP **400** for every OpenBet-stack bet.
+
+   *Why no fixture could catch it:* every existing fixture was authored from the same wrong
+   assumption, so the fixtures and the code agreed. `200-openbet-bet.json` now encodes the real
+   OpenBet shape — legs carrying only a bare `rampId` — and the regression suite asserts that
+   **no event call is made at all** for such a leg.
+
+**The strategy gap this leaves open.** Fixtures verify that code and fixture agree; they cannot
+verify that either matches upstream. Every one of the identifier defects on this branch was of
+that kind. The mitigation available today is quickstart.md's Validation 4, and this run is the
+argument for treating it as mandatory before release rather than optional.
 
 ## Additions to `core`, both opt-in and additive
 
@@ -107,18 +141,47 @@ could silently narrow or widen the lookup.
 
 ## Open assumptions — owner and removal condition
 
-Validation 4 requires a live GMA token and a human-in-the-loop session, so all three remain
-open. Each has a stated owner and a removal condition, as quickstart.md requires.
+Validation 4 was run against live dev GMA on 2026-09-09. **R9 and R14 are closed**; R8 remains
+open with an owner, since it cannot be settled by observation.
 
 | Ref | Assumption | Removal condition | Owner |
 | --- | ---------- | ----------------- | ----- |
-| **R9** | `leg.event.entityIds.rampId`, URN-prefixed, is the v5 event identifier | Observe one real leg resolve, and read its `resolvedVia` — the field exists precisely to record which member worked | feature implementer, before release |
-| **R14** | A bet's applied `liabilityGroup` string is the configured group's `description` (with `code` as fallback) | Observe one real bet whose applied group matches a configured one | feature implementer, before release |
+| ~~**R9**~~ | ~~`leg.event.entityIds.rampId`, URN-prefixed, is the v5 event identifier~~ | **CLOSED 2026-09-09 — against the assumption.** See below. | closed |
+| ~~**R14**~~ | ~~A bet's applied `liabilityGroup` string is the configured group's `description`~~ | **CLOSED 2026-09-09 — as assumed.** A live bet reported `configuredValue: "Marks Soccer AT"` against `appliedValue: "Arber"` — both human-authored descriptions, not codes. The `code` fallback never fired, and the three-valued verdict correctly reported `differs` with both strings visible rather than a confident wrong answer. | closed |
 | **R8** | An unconfigured jurisdiction is omitted from a customer's configuration list rather than returned empty | **Ask a human who owns CRS** — this cannot be settled by observation alone | CRS system owner |
 
-**A caution for whoever closes R9.** If **every** leg reports `notResolvedIdentifierUnusable`,
-suspect three things in this order: the URN prefix (defect 3 above), the instance scoping
-(T043), and only then the `entityIds` member itself. All three produce an identical symptom.
+### R9 closed AGAINST the assumption, and how a passing test hid that
+
+R9 assumed the bridge was `rampId` with a hardcoded `urn:sbk:pc:e:gpd:` prefix. **It is
+`gbpId`**, and the `gpd` is not a constant — it is the `source` segment, carried in the data.
+
+GMA performs this exact join itself, in `Rule4EnrichmentService:121`:
+
+```java
+GbpId.fromSourceId(gbpIdOf(leg.getEvent()), "e").toLongUrn()
+```
+
+`gbpIdOf` reads **`entityIds.gbpId`** (`:128`), and `GbpId.fromSourceId` (`GbpId.java:17`)
+requires `source:sourceId`, assembling `urn:sbk:pc:{level}:{source}:{sourceId}`. When the
+gbpId is blank, `:114` **skips the leg** rather than substituting anything.
+
+**The two bet stacks are why this mattered.** Steel-thread bets (internal, ids shaped
+`urn:sbk:bet:…`) carry a namespaced `gbpId`; **OpenBet** bets (numeric ids, `isOb: true`) may
+carry only a bare `rampId`. Against a real OpenBet bet, the invented `gpd` namespace produced
+a live **HTTP 400**, and the composite went `PARTIAL` for every bet on that stack.
+
+**How a live test appeared to confirm the wrong answer.** A steel-thread bet resolved both
+legs with `resolvedVia: rampId`, and that was read as confirmation. It was not: for that bet
+`rampId` and the gbpId's `sourceId` were the same number *and* the source happened to be
+`gpd`, so the two candidate mechanisms were indistinguishable. **A passing result does not
+confirm a mechanism unless the alternative would have failed.** Only a bet where the forms
+differ could tell them apart — which is what the OpenBet bet is, and what
+`200-openbet-bet.json` now pins.
+
+`pickIdentifier` now prefers `gbpId`; `rampId` remains a fallback for display only, and
+yields `null` from `toEventLookupId` because no URN can be built from it without inventing a
+namespace. Such a leg is reported `notResolvedIdentifierUnusable` — distinct from
+`notResolvedUpstreamFailure`, since no retry can supply a namespace the bet never carried.
 
 R9 also gained a **second, narrower** unverified element while implementing: defect 4's
 trailing-segment comparison is evidenced for events only, and the three non-event levels are

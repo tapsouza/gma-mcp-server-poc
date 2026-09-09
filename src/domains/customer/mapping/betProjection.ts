@@ -7,47 +7,85 @@ import type { AppliedRiskFigures, Bet, BetLeg, NamedEntity, WagerAmounts } from 
  * `entityIds`, `betReceiptId` and the single-letter `LegResult` codes all stop here
  * (constitution Principle IV).
  *
- * ## R9 lives in this file
+ * ## R9 — CLOSED, and closed AGAINST the original assumption
  *
  * A leg's catalogue entity carries `{ sportexId, rampId, openbetId, gbpId }`, and
- * `GET /v5/events/{id}` wants one specific form. WHICH member is the right one is an
- * UNVERIFIED assumption: the bet-management front-end uses `rampId`
- * (`linkManager.ts:51`), `gbpId` is the more suggestive name, and no source reconciles
- * them (research.md R9).
+ * `GET /v5/events/{id}` wants a full GBP URN. R9 assumed the bridge was `rampId` with a
+ * hardcoded `urn:sbk:pc:e:gpd:` prefix, on the evidence of the bet-management front-end
+ * (`linkManager.ts:51` + `:88`). **That was wrong**, and GMA's own code says so.
  *
- * So this mapper tries `rampId`, then `gbpId`, and RECORDS WHICH ONE IT USED. That
- * record is what the composite reports as `resolvedVia`, satisfying Principle IV's rule
- * that a load-bearing unverified assumption must be stated in the tool's result rather
- * than buried. If the assumption is wrong, every leg fails to resolve visibly instead of
- * one succeeding by luck.
+ * GMA performs this exact join in `Rule4EnrichmentService:121`:
+ *
+ * ```java
+ * GbpId.fromSourceId(gbpIdOf(leg.getEvent()), "e").toLongUrn()
+ * ```
+ *
+ * where `gbpIdOf` reads **`entityIds.gbpId`** (`:128`) — not `rampId`. And
+ * `GbpId.fromSourceId` (`GbpId.java:17`) requires the value to be `source:sourceId`,
+ * splitting on `:` and throwing if it is not exactly two parts. The URN is then assembled
+ * as `urn:sbk:pc:{level}:{source}:{sourceId}`.
+ *
+ * So `gpd` is **not a constant** — it is the `source` segment, and it comes from the data.
+ * Hardcoding it invented a namespace for every bet whose source differs, which is what
+ * produced a live `400` on an OpenBet bet.
+ *
+ * ## Two bet stacks, and why the wrong one still "worked"
+ *
+ * There are two: **steel-thread** bets (processed internally, ids shaped `urn:sbk:bet:…`)
+ * and **OpenBet** bets (numeric ids). QBS distinguishes them with `isOb` — *"if bet is
+ * from Openbet or not"*.
+ *
+ * The original assumption appeared to hold on a steel-thread bet because `rampId` and the
+ * gbpId's `sourceId` were the same number AND its source happened to be `gpd`. The leg
+ * resolved, `resolvedVia` reported `rampId`, and that read as confirmation. It was not:
+ * the two candidate mechanisms were never distinguished by that bet. Only a bet where the
+ * forms differ could tell them apart, and an OpenBet bet is exactly that.
+ *
+ * The lesson recorded for the next reader: a passing result does not confirm a mechanism
+ * unless the alternative would have failed.
  */
 
 /** Which `entityIds` member supplied a leg's identifier. A field LEVEL, never a value. */
 export type EntityIdSource = 'rampId' | 'gbpId';
 
 /**
- * The v5 event URN prefix, from the only observed bridge (R9).
- *
- * `gbpbmui-tool/src/constants/urnPrefixes.ts:2` — `URN_PREFIXES.EVENT` — applied to a
- * leg's `rampId` at `linkManager.ts:88`.
+ * The catalogue level segment for an event, matching GMA's `EVENT_LEVEL`
+ * (`Rule4EnrichmentService:41` — `"e"`).
  */
-const EVENT_URN_PREFIX = 'urn:sbk:pc:e:gpd:';
+const EVENT_LEVEL = 'e';
 
 /**
- * A leg's event identifier in the form `GET /v5/events/{id}` expects.
+ * A leg's event identifier as a full GBP long URN, or `null` when one cannot be built.
  *
- * R9's assumption is `rampId` **prefixed**, not the bare value: the front-end reads
- * `event.entityIds.rampId` (`linkManager.ts:51`) and then prefixes it
- * (`:88`). Sending the bare `9201` would 404 every leg — and because an unresolvable leg
- * is reported as `notResolvedIdentifierUnusable`, the symptom would look exactly like R9
- * being wrong rather than like this transformation being missing. That is the confident
- * failure this function exists to prevent.
+ * Mirrors `GbpId.fromSourceId(...).toLongUrn()`: a `gbpId` of `gpd:14643022` becomes
+ * `urn:sbk:pc:e:gpd:14643022`. The `source` is READ FROM THE VALUE and never assumed —
+ * that assumption is what broke this before.
  *
- * Idempotent: a value already in URN form is returned unchanged, so an upstream that
- * starts sending URNs does not break the hop.
+ * Returns `null` rather than guessing when the value is not `source:sourceId`, because a
+ * bare number carries no namespace and any URN built from one would be a fabrication.
+ * GMA does the same: `Rule4EnrichmentService:114` skips the leg outright when the `gbpId`
+ * is blank rather than substituting anything. A `null` here surfaces as
+ * `notResolvedIdentifierUnusable` — an honest "this leg's position is unknown", which is
+ * categorically better than a confident lookup of an id nobody issued.
+ *
+ * Idempotent for a value already in long-URN form, so an upstream that starts sending
+ * assembled URNs does not break the hop.
  */
-export function toEventLookupId(eventId: string): string {
-  return eventId.startsWith('urn:') ? eventId : `${EVENT_URN_PREFIX}${eventId}`;
+export function toEventLookupId(eventId: string): string | null {
+  // Already a long URN: `urn:sbk:pc:e:gpd:14643022` is six colon-separated parts, the
+  // shape `GbpId.fromLongUrn` accepts.
+  if (eventId.startsWith('urn:')) {
+    return eventId.split(':').length === 6 ? eventId : null;
+  }
+
+  // `source:sourceId`, the shape `GbpId.fromSourceId` requires.
+  const parts = eventId.split(':');
+  if (parts.length !== 2) return null;
+
+  const [source, sourceId] = parts as [string, string];
+  if (source.length === 0 || sourceId.length === 0) return null;
+
+  return `urn:sbk:pc:${EVENT_LEVEL}:${source}:${sourceId}`;
 }
 
 /** The subset of `POST /qbs/graphql`'s `Bet` this mapper reads. Upstream vocabulary. */
@@ -150,23 +188,31 @@ function stringOrNull(value: string | null | undefined): string | null {
 }
 
 /**
- * Pick a leg entity's identifier, trying `rampId` then `gbpId` (R9).
+ * Pick a leg entity's identifier, preferring **`gbpId`** (R9, closed).
  *
- * Returns the source alongside the value so the caller can report which one worked.
- * `null` for both means the leg carries nothing usable, which the composite reports as
- * `notResolvedIdentifierUnusable` — kept DISTINCT from an upstream failure precisely so
- * that a wrong R9 assumption is immediately visible rather than hidden in a generic
- * error bucket.
+ * `gbpId` first, because it is the member GMA's own join uses and the only one that
+ * carries its `source` namespace — `rampId` is a bare number, so any URN built from it
+ * requires INVENTING the source, which is precisely the defect this ordering corrects.
+ *
+ * `rampId` remains a fallback so a leg that carries only that value still gets a
+ * displayable identifier. It will not produce a usable event lookup (`toEventLookupId`
+ * returns `null` for a value with no `source:` segment), and that is the honest outcome:
+ * the leg is reported `notResolvedIdentifierUnusable` rather than looked up under a
+ * fabricated namespace.
+ *
+ * The source is returned alongside so the composite can report `resolvedVia` — which is
+ * now genuinely diagnostic. `gbpId` means the canonical path worked; `rampId` on an
+ * unresolved leg means this leg carried no namespaced identifier at all.
  */
 function pickIdentifier(entity: QbsCatalogEntity | null | undefined): {
   id: string | null;
   source: EntityIdSource | null;
 } {
-  const rampId = stringOrNull(entity?.entityIds?.rampId);
-  if (rampId !== null) return { id: rampId, source: 'rampId' };
-
   const gbpId = stringOrNull(entity?.entityIds?.gbpId);
   if (gbpId !== null) return { id: gbpId, source: 'gbpId' };
+
+  const rampId = stringOrNull(entity?.entityIds?.rampId);
+  if (rampId !== null) return { id: rampId, source: 'rampId' };
 
   return { id: null, source: null };
 }

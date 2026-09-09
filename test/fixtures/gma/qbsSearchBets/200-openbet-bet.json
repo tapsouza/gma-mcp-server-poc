@@ -8,8 +8,8 @@
       "results": [
         {
           "ids": {
-            "betId": "bet-000111",
-            "betReceiptId": "R-000111",
+            "betId": "575487504",
+            "betReceiptId": "575487504",
             "accountId": "acct-test-0001"
           },
           "status": "SETTLED",
@@ -48,40 +48,36 @@
               "sport": {
                 "name": "Football",
                 "entityIds": {
-                  "rampId": "9001",
-                  "gbpId": "gpd:9001"
+                  "rampId": "9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
-                  "rampId": "9101",
-                  "gbpId": "gpd:9101"
+                  "rampId": "9101"
                 }
               },
               "event": {
-                "name": "Team A v Team B",
+                "name": "Tampa Bay Lightning @ Florida Panthers",
                 "entityIds": {
-                  "rampId": "9201",
-                  "gbpId": "gpd:9201"
+                  "rampId": "14643022"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
-                  "rampId": "9301",
-                  "gbpId": "gpd:9301"
+                  "rampId": "9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
-                  "rampId": "9401",
-                  "gbpId": "gpd:9401"
+                  "rampId": "9401"
                 }
               }
             }
-          ]
+          ],
+          "isOb": true
         }
       ]
     }

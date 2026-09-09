@@ -49,35 +49,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -126,35 +126,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -203,35 +203,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -280,35 +280,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -357,35 +357,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -434,35 +434,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -511,35 +511,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -588,35 +588,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -665,35 +665,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -742,35 +742,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -819,35 +819,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -896,35 +896,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -973,35 +973,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1050,35 +1050,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1127,35 +1127,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1204,35 +1204,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1281,35 +1281,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1358,35 +1358,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1435,35 +1435,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1512,35 +1512,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1589,35 +1589,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1666,35 +1666,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1743,35 +1743,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1820,35 +1820,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }
@@ -1897,35 +1897,35 @@
                 "name": "Football",
                 "entityIds": {
                   "rampId": "9001",
-                  "gbpId": "gbp-sport-9001"
+                  "gbpId": "gpd:9001"
                 }
               },
               "competition": {
                 "name": "Premier League",
                 "entityIds": {
                   "rampId": "9101",
-                  "gbpId": "gbp-comp-9101"
+                  "gbpId": "gpd:9101"
                 }
               },
               "event": {
                 "name": "Team A v Team B",
                 "entityIds": {
                   "rampId": "9201",
-                  "gbpId": "gbp-event-9201"
+                  "gbpId": "gpd:9201"
                 }
               },
               "market": {
                 "name": "Match Winner",
                 "entityIds": {
                   "rampId": "9301",
-                  "gbpId": "gbp-market-9301"
+                  "gbpId": "gpd:9301"
                 }
               },
               "selection": {
                 "name": "Team A",
                 "entityIds": {
                   "rampId": "9401",
-                  "gbpId": "gbp-sel-9401"
+                  "gbpId": "gpd:9401"
                 }
               }
             }

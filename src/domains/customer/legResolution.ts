@@ -74,6 +74,18 @@ export interface EventResolutions {
   readonly failed: ReadonlySet<string>;
   /** Event identifiers not attempted because the bound was reached. */
   readonly notAttempted: ReadonlySet<string>;
+  /**
+   * Event identifiers that could not be expressed as a catalogue URN, so no lookup was
+   * ATTEMPTED.
+   *
+   * Distinct from `failed` on purpose. `failed` means we asked and upstream could not
+   * answer — retrying might work. This means the leg carried no namespaced identifier, so
+   * asking is impossible and no retry can help. Folding the two would hide a systematic
+   * identifier problem inside a bucket that reads as transient (Principle IV).
+   *
+   * Optional so existing callers and tests are unaffected.
+   */
+  readonly unusable?: ReadonlySet<string> | undefined;
 }
 
 /**
@@ -205,6 +217,22 @@ export function resolveLegs(input: ResolveLegsInput): ResolvedLeg[] {
         overridesInScope: [],
         resolution: 'notResolvedIdentifierUnusable',
         resolvedVia: null
+      };
+    }
+
+    // The identifier existed but could not be expressed as a catalogue URN, so nothing
+    // was asked. Reported as unusable rather than as an upstream failure: no retry can
+    // help, and calling it `notResolvedUpstreamFailure` would blame the wrong system.
+    if (resolutions.unusable?.has(eventId) === true) {
+      return {
+        legNumber: leg.legNumber,
+        leg,
+        cataloguePath: null,
+        overridesInScope: [],
+        resolution: 'notResolvedIdentifierUnusable',
+        // The MEMBER is still reported: knowing the leg carried only a `rampId` is
+        // exactly what tells an operator why this leg could not be looked up.
+        resolvedVia
       };
     }
 
