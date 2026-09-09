@@ -95,9 +95,14 @@ describe('jurisdiction matching (FR-018)', () => {
 
   describe('case: THE CONTEXT LIST IS PRIMARY and derivation is only a fallback (v1.2.0)', () => {
     it('resolves Ontario through the context list, which derivation provably cannot', () => {
-      // The standing proof: `urn:i:FD:CA-ON` against a context observed as `NXTCANBS`.
-      // No derivation produces that, which is why a hardcoded table is prohibited —
-      // it would fail confidently as jurisdictions are added.
+      // The standing proof: a catalogue jurisdiction of `urn:i:FD:CA-ON` against a context
+      // code of `NXTCANBS`. No derivation produces that, which is why a hardcoded table is
+      // prohibited — it would fail confidently as jurisdictions are added.
+      //
+      // The PAIRING is illustrative, not observed: live, `NXTCANBS` (id 930) and `CA-ON`
+      // (id 521) are two separate contexts. What IS observed is `NXTCANBS` existing as a
+      // context code bearing no relation to any state abbreviation, which is the property
+      // under test — a non-derivable code must resolve through the list or not at all.
       const result = matchJurisdiction(
         'urn:i:FD:CA-ON',
         [configuration(ONTARIO)],

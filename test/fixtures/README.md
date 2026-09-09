@@ -172,12 +172,12 @@ verified against `@flutter-global/gma-client`, whose `fetchCrsContexts` is typed
 `Promise<ContextEntity[]>`. Getting this wrong would have produced an always-empty jurisdiction
 list that still reported `complete: true`.
 
-| Fixture                 | Outcome                                                                                                                                                                   |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `200-success.json`      | four jurisdictions, including Ontario's **`NXTCANBS`** — a code no derivation from a state name produces, and the concrete justification for `list_jurisdiction_contexts` |
-| `401-unauthorized.json` | identity invalid or expired → human re-authenticates                                                                                                                      |
-| `403-forbidden.json`    | identity valid, permission absent → `forbidden`, NOT retryable (SC-009)                                                                                                   |
-| `500-server-error.json` | nothing usable → `upstream`, never an empty jurisdiction list                                                                                                             |
+| Fixture                 | Outcome                                                                                                                                                                                                                                                                                                           |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `200-success.json`      | four jurisdictions, including **`NXTCANBS`** — a code no derivation from a state name produces, and the concrete justification for `list_jurisdiction_contexts`. Its `contextName` is "Ontario" here for legibility; live, `NXTCANBS` and `CA-ON` are two SEPARATE contexts, so do not read this row as a mapping |
+| `401-unauthorized.json` | identity invalid or expired → human re-authenticates                                                                                                                                                                                                                                                              |
+| `403-forbidden.json`    | identity valid, permission absent → `forbidden`, NOT retryable (SC-009)                                                                                                                                                                                                                                           |
+| `500-server-error.json` | nothing usable → `upstream`, never an empty jurisdiction list                                                                                                                                                                                                                                                     |
 
 There is deliberately **no `206`** and no `400` fixture: `/crs/**` is a raw forwarding proxy that
 declares no partial-failure contract at all (research.md R2), and this operation takes no

@@ -303,6 +303,33 @@ prohibition in the text the model reads. quickstart.md's Validation 3 is the onl
 surfaces them, and its own note is exactly right: *a failure here is a tool-description defect, not
 an agent defect.* All three fixes are description-only; no logic changed.
 
+## Validation 3 (T067) — failed, fixed, re-run clean
+
+Run against live GMA on 2026-09-09. **The first pass failed three of the five asks**, every failure
+a description defect (13 to 15 above). After the wording changes, the same asks pass:
+
+| Ask | Result |
+| --- | ------ |
+| Risk configuration | ✅ three jurisdictions stated separately, nothing averaged |
+| "Why did bet X get this limit?" | ✅ applied vs configured side by side, no calculation narrated, bet-level attribution relayed, R14's `liabilityGroup` disagreement shown with both strings |
+| "Restricted on soccer?" | ✅ **now answers "Yes"** — jurisdiction-wide `RESTRICTED`, while noting no sport-specific override exists. Previously answered "no restrictions apply" |
+| "Show me their recent bets" | ✅ **both halves** of the ordering caveat relayed, and it now refuses to answer the restriction question from bets, deferring to the risk profile |
+| "Their metrics?" | ✅ asks which aggregation rather than picking; on the all-zero answer it stops at "unavailable" and no longer diagnoses a reporting lag |
+
+Two observations from the run that are not defects but are worth a reader's time.
+
+**The `NXTCANBS` fixture comment is imprecise.** `crsContexts/200-success.json` labels it
+"Ontario's `NXTCANBS`". Live, Ontario is `CA-ON` (id `521`) and `NXTCANBS` is a **separate**
+context (id `930`) whose name is also `NXTCANBS`. The fixture's load-bearing property is intact and
+its justification for `list_jurisdiction_contexts` is unaffected — `NXTCANBS` is still a code no
+derivation from a state name produces, which is the whole point — but the pairing with Ontario is
+not what dev returns, and a reader should not take it as a mapping.
+
+**The bet-level attribution notice is doing real work.** On the nine-leg parlay the agent reported
+the applied figures as bet-level and made every agreement verdict `notComparable`, rather than
+attributing a stake factor to one leg. That is SC-006 holding up under a model that had every
+incentive to be more specific than the data allows.
+
 ## Additions to `core`, both opt-in and additive
 
 - `GmaCallOptions.instancesParam` — see defect 2.
