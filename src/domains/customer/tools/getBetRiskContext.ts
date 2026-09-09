@@ -5,6 +5,7 @@ import type { OperatorToken } from '../../../core/identity.js';
 import type { Completeness, ComponentName } from '../../../core/types.js';
 import { assessAgreement, type AgreementVerdict } from '../agreement.js';
 import {
+  FIRST_PAGE,
   PLACEMENT_DATE_DESC,
   QBS_GRAPHQL_PATH,
   SEARCH_BETS_DOCUMENT,
@@ -268,7 +269,9 @@ export async function getBetRiskContext(
         // Two is enough to DETECT a multi-match, which is all this tool needs: on more
         // than one it returns candidates and stops. Asking for more would fetch bets
         // it has already decided not to use.
-        params: { pageNumber: 1, itemsPerPage: 2, sort: PLACEMENT_DATE_DESC }
+        // ZERO-based (see `FIRST_PAGE`). Two items is enough to DETECT a multi-match,
+        // which is all this tool needs: on more than one it returns candidates and stops.
+        params: { pageNumber: FIRST_PAGE, itemsPerPage: 2, sort: PLACEMENT_DATE_DESC }
       }
     },
     { token, pathTemplate: QBS_GRAPHQL_PATH, tool: 'get_bet_risk_context', hop: 1 }

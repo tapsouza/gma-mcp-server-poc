@@ -92,6 +92,28 @@ describe('get_bet_risk_context (Story 3, P3)', () => {
       expect(result.completeness.complete).toBe(true);
     });
 
+    it('asks QBS for the ZERO-th page, because pageNumber is zero-based', async () => {
+      // The composite had the same live defect as `find_customer_bets`: `pageNumber: 1`
+      // asks for the second page, and a one-page result answers 200 with an empty set. So
+      // hop 1 found nothing, and the tool reported "no match" for a real bet — the whole
+      // composite unreachable, with no error anywhere. See `FIRST_PAGE` for the evidence.
+      const recorder = requestRecorder();
+      server.use(
+        http.post(QBS, async ({ request }) => {
+          await recorder.record(request);
+          return HttpResponse.json(qbsSingle);
+        }),
+        http.get(CRS_ACCOUNT, () => HttpResponse.json(crsAccount)),
+        http.get(CRS_CONTEXTS, () => HttpResponse.json(crsContexts)),
+        http.get(EVENT, () => HttpResponse.json(event1))
+      );
+
+      await getBetRiskContext(deps(), TEST_TOKEN, { betId: 'bet-000111' });
+      const body = recorder.seen[0]!.body as { variables: { params: { pageNumber: number } } };
+
+      expect(body.variables.params.pageNumber).toBe(0);
+    });
+
     it('JOINS the leg to its overrides across the two vocabularies (FR-019)', async () => {
       // THE case the composite exists for, and the one a plausible implementation fails
       // silently: CRS states `'3'`/`'7'`/`'3307'` and v5 returns

@@ -4,6 +4,7 @@ import type { GmaClient } from '../../../core/gmaClient.js';
 import type { OperatorToken } from '../../../core/identity.js';
 import type { Completeness } from '../../../core/types.js';
 import {
+  FIRST_PAGE,
   PLACEMENT_DATE_DESC,
   QBS_GRAPHQL_PATH,
   SEARCH_BETS_DOCUMENT,
@@ -159,7 +160,9 @@ export async function findCustomerBets(
         // Caller values land HERE and nowhere else.
         input: { ids: { [identifier.kind]: [identifier.value] } },
         params: {
-          pageNumber: 1,
+          // ZERO-based. `1` would silently ask for the second page and return an empty
+          // result set for a bet that exists — see `FIRST_PAGE` for the evidence.
+          pageNumber: FIRST_PAGE,
           itemsPerPage: effectiveLimit,
           // Requested upstream rather than only sorted afterwards (research.md R6).
           sort: PLACEMENT_DATE_DESC

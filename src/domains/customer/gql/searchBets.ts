@@ -146,3 +146,35 @@ export const PLACEMENT_DATE_DESC = Object.freeze({
   field: 'PLACEMENT_DATE',
   order: 'DESC'
 });
+
+/**
+ * The number of the FIRST page. QBS's `pageNumber` is **ZERO-BASED**.
+ *
+ * ## Why this is a named constant and not a literal `0`
+ *
+ * The schema does not say which convention it uses — `pageNumber: Int!` is documented only
+ * as "The number of the page requested" — so this was originally assumed to be one-based,
+ * and the assumption was WRONG. Two independent sources settle it:
+ *
+ *  - The bet-management front-end holds a one-based `index` in its own state
+ *    (`paginationV2.ts:29` — `{ index: 1, size: 25 }`) and converts on the way out:
+ *    `fetchSearchBets(input, pageInfo.index - 1, pageInfo.size)`
+ *    (`useDynamicQuery.ts:91`). Its observed wire request for page one is `pageNumber: 0`.
+ *  - GMA's own bet export starts at `private int pageNumber = 0`
+ *    (`BetExportProgress.java:8`) and increments only after a page returns.
+ *
+ * ## Why getting this wrong is invisible
+ *
+ * Sending `1` asks for the SECOND page. For a single-bet lookup that is one page long, the
+ * response is a clean HTTP 200 with `pageInfo.count: 0` and no `errors[]` — indistinguishable
+ * from "this bet does not exist". So a tool reports an honest "no match" for a bet that is
+ * sitting right there in the UI, and nothing anywhere signals a defect. It is the same
+ * failure shape as this feature's other identifier bugs: not an error, just a confident
+ * wrong answer.
+ *
+ * A caution for anyone changing this: a fixture cannot catch it. `msw` returns whatever the
+ * handler is given regardless of `pageNumber`, so every offline test passes either way. Only
+ * a live call can tell, which is why the value is pinned here with its provenance rather
+ * than spelled inline at two call sites.
+ */
+export const FIRST_PAGE = 0;

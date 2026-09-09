@@ -93,6 +93,30 @@ describe('find_customer_bets (Story 2, P2)', () => {
       expect(body.variables.params.itemsPerPage).toBe(MAX_BETS);
     });
 
+    it('requests the ZERO-th page, because QBS pageNumber is zero-based', async () => {
+      // A REGRESSION TEST for a live defect: this sent `pageNumber: 1`, which asks for the
+      // SECOND page. A single-bet lookup is one page long, so QBS answered HTTP 200 with
+      // `pageInfo.count: 0` and no `errors[]` — and the tool honestly reported "no match"
+      // for a bet visible in the UI. Nothing signalled a fault.
+      //
+      // Note what this assertion can and cannot do. `msw` ignores `pageNumber` entirely, so
+      // no fixture-based test can catch the WRONG value by observing a wrong result — the
+      // defect was found against live GMA. What it does catch is the value silently
+      // changing back, which is the regression that matters.
+      const recorder = requestRecorder();
+      server.use(
+        http.post(QBS, async ({ request }) => {
+          await recorder.record(request);
+          return HttpResponse.json(qbsSingle);
+        })
+      );
+
+      await findCustomerBets(client(), MAX_BETS, TEST_TOKEN, { betId: 'bet-000111' });
+      const body = recorder.seen[0]!.body as { variables: { params: { pageNumber: number } } };
+
+      expect(body.variables.params.pageNumber).toBe(0);
+    });
+
     it('sends NO instance query parameter (FR-025, constitution v1.2.0)', async () => {
       // `?instance=` is ROUTING, not scoping. It must not be sent while multi-instance
       // routing is disabled, and must never be a tool argument in any case.
